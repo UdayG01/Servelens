@@ -1,0 +1,49 @@
+# Python virtual environment
+venv/
+.venv/
+env/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Model weights (large binaries — download via setup.bat)
+models/*.pt
+models/*.onnx
+models/*.engine
+
+# Runtime-generated data
+snapshots/
+recordings/
+alerts/alerts.csv
+
+# Sample videos (large binaries — provide your own)
+videos/*.mp4
+videos/*.avi
+videos/*.mov
+videos/*.mkv
+
+# DeepStack local storage (if mounted locally instead of Docker volume)
+localstorage/
+
+# Environment / secrets (.env.example is committed; .env is not)
+.env
+*.env
+!.env.example
+
+# IDE and OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+logs/
+
+# Distribution / build
+dist/
+build/
+*.egg-info/

@@ -1,0 +1,79 @@
+{
+    "cameras": [
+        {
+            "id": "cam1",
+            "name": "Main Entrance",
+            "source": "videos/sample1.mp4",
+            "enabled": true,
+            "models": ["person_detector"],
+            "alert_classes": ["person"],
+            "min_confidence": 0.5,
+            "alert_cooldown_sec": 60
+        },
+        {
+            "id": "cam2",
+            "name": "Face Recognizer",
+            "source":  "rtsp://admin:Twa1cxxn@10.0.0.3:554/stream2",
+            "enabled": true,
+            "models": ["face_recognizer"],
+            "alert_classes": ["face"],
+            "min_confidence": 0.5,
+            "alert_cooldown_sec": 30
+        },
+        {
+            "id": "cam3",
+            "name": "ANPR Gate",
+            "source": "videos/sample3.mp4",
+            "enabled": true,
+            "models": ["plate_reader"],
+            "alert_classes": ["license_plate"],
+            "min_confidence": 0.4,
+            "alert_cooldown_sec": 30
+        }
+    ],
+    "models": {
+        "person_detector": {
+            "weights": "models/yolov8n.pt",
+            "type": "yolo",
+            "img_size": 640,
+            "device": "cpu"
+        },
+        "vehicle_detector": {
+            "weights": "models/yolov8n.pt",
+            "type": "yolo",
+            "img_size": 640,
+            "device": "cpu"
+        },
+        "face_recognizer": {
+            "type": "deepstack_face",
+            "deepstack_url": "http://localhost:80"
+        },
+        "plate_reader": {
+            "weights": "models/license_plate_detector.pt",
+            "type": "anpr",
+            "img_size": 640,
+            "device": "cpu",
+            "ocr_languages": ["en"],
+            "ocr_min_confidence": 0.3
+        }
+    },
+    "email": {
+        "enabled": true,
+        "smtp_server": "smtp.gmail.com",
+        "smtp_port": 587,
+        "sender_email": "your_personal@gmail.com",
+        "sender_app_password": "REPLACE_WITH_16_CHAR_APP_PASSWORD",
+        "recipients": ["vaibhav.kurrey@nexren.ai"],
+        "subject_prefix": "[CCTV ALERT]"
+    },
+    "recording": {
+        "auto_record_on_alert": true,
+        "alert_clip_duration_sec": 15,
+        "fourcc": "mp4v",
+        "fps": 15
+    },
+    "ui": {
+        "inference_interval_frames": 5,
+        "jpeg_quality": 70
+    }
+}

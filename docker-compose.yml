@@ -1,0 +1,14 @@
+services:
+  deepstack:
+    image: ${DEEPSTACK_IMAGE:-deepquestai/deepstack}
+    container_name: deepstack
+    restart: unless-stopped
+    environment:
+      - VISION-FACE=True
+    volumes:
+      - deepstack_data:/datastore
+    ports:
+      - "80:5000"
+
+volumes:
+  deepstack_data:

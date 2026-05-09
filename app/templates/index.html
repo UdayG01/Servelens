@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Servelens</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">▣</span>
+      <span class="brand-name">ServeLens<span class="brand-thin"> AI</span></span>
+      <span class="brand-rev">v1.0</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="actions">
+      <button id="btnTestEmail" class="btn">⌁ Test Email</button>
+      <button id="btnRefresh" class="btn">↻ Refresh</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="grid-wrap">
+      <div class="section-head">
+        <h2>LIVE FEEDS</h2>
+        <span class="meta" id="cameraCount">0 cameras</span>
+      </div>
+      <div class="grid" id="cameraGrid"></div>
+    </section>
+
+    <aside class="sidebar">
+      <div class="section-head">
+        <h2>ALERT LOG</h2>
+        <span class="meta" id="alertCount">0</span>
+      </div>
+      <div class="alerts-list" id="alertsList">
+        <div class="empty">No alerts yet.</div>
+      </div>
+    </aside>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <!-- Snapshot lightbox -->
+  <div id="lightbox" class="lightbox" hidden>
+    <div class="lb-inner">
+      <button class="lb-close" id="lbClose">×</button>
+      <img id="lbImg" alt="" />
+      <div class="lb-meta" id="lbMeta"></div>
+    </div>
+  </div>
+
+  <!-- Face Management Modal -->
+  <div id="faceModal" class="face-modal" hidden>
+    <div class="face-modal-inner">
+      <div class="face-modal-head">
+        <span class="face-modal-title">⊙ FACE MANAGEMENT</span>
+        <button class="face-modal-close" id="faceModalClose">×</button>
+      </div>
+      <div class="face-modal-body">
+
+        <div class="face-section">
+          <div class="face-section-label">REGISTER NEW FACE</div>
+          <p class="face-hint">Upload one or more clear photos of a person to train the recognizer. More images improve accuracy.</p>
+          <div class="face-register-form">
+            <input type="text" id="faceNameInput" class="face-input" placeholder="Person name…" autocomplete="off" />
+            <label class="face-file-label" for="faceImagesInput">
+              <input type="file" id="faceImagesInput" multiple accept="image/jpeg,image/png,image/jpg" />
+              <span id="faceFileLabel">Choose images…</span>
+            </label>
+            <button id="faceRegisterBtn" class="btn">+ Register</button>
+          </div>
+          <div id="faceRegisterStatus" class="face-status"></div>
+        </div>
+
+        <div class="face-section">
+          <div class="face-section-header">
+            <span class="face-section-label">REGISTERED FACES</span>
+            <button id="faceListRefreshBtn" class="btn">↻ Refresh</button>
+          </div>
+          <div id="faceList" class="face-list">
+            <span class="face-list-empty">Loading…</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
