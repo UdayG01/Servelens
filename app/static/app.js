@@ -69,7 +69,9 @@ function buildTile(cam) {
   };
 
   if (cam.face_recognition) {
-    tile.querySelector('[data-facecam]').addEventListener('click', () => openFaceModal());
+    tile.querySelector('[data-facecam]').addEventListener('click', () => {
+      window.location.href = '/faces';
+    });
   }
 
   const recBtn = tile.querySelector('[data-rec]');
@@ -272,109 +274,3 @@ refreshCameras();
 refreshAlerts();
 setInterval(refreshCameras, 2500);
 setInterval(refreshAlerts, 2000);
-
-// ===== Face Management Modal =====
-
-const faceModal = $('#faceModal');
-
-function openFaceModal() {
-  faceModal.hidden = false;
-  loadFaceList();
-}
-
-function closeFaceModal() {
-  faceModal.hidden = true;
-  $('#faceRegisterStatus').textContent = '';
-  $('#faceRegisterStatus').className = 'face-status';
-}
-
-$('#faceModalClose').addEventListener('click', closeFaceModal);
-$('#faceModal').addEventListener('click', (e) => {
-  if (e.target === faceModal) closeFaceModal();
-});
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && !faceModal.hidden) closeFaceModal();
-});
-
-$('#faceImagesInput').addEventListener('change', () => {
-  const files = $('#faceImagesInput').files;
-  $('#faceFileLabel').textContent = files.length
-    ? `${files.length} image${files.length > 1 ? 's' : ''} selected`
-    : 'Choose images…';
-});
-
-async function loadFaceList() {
-  const listEl = $('#faceList');
-  listEl.innerHTML = '<span class="face-list-empty">Loading…</span>';
-  try {
-    const r = await fetch('/api/faces/list');
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.detail || 'Failed to reach DeepStack');
-    const faces = data.faces || [];
-    if (!faces.length) {
-      listEl.innerHTML = '<span class="face-list-empty">No registered faces yet.</span>';
-      return;
-    }
-    listEl.innerHTML = '';
-    for (const name of faces) {
-      const item = document.createElement('div');
-      item.className = 'face-item';
-      item.innerHTML = `
-        <span class="face-item-name">${name}</span>
-        <button class="face-del-btn" data-name="${name}">Delete</button>
-      `;
-      item.querySelector('[data-name]').addEventListener('click', () => deleteFace(name));
-      listEl.appendChild(item);
-    }
-  } catch (e) {
-    listEl.innerHTML = `<span class="face-list-empty face-error">Error: ${e.message}</span>`;
-  }
-}
-
-async function deleteFace(name) {
-  if (!confirm(`Delete face profile for "${name}"?`)) return;
-  try {
-    const r = await fetch(`/api/faces/${encodeURIComponent(name)}`, { method: 'DELETE' });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.detail || 'Delete failed');
-    showToast(`Deleted: ${name}`);
-    loadFaceList();
-  } catch (e) {
-    showToast('Delete failed: ' + e.message, true);
-  }
-}
-
-$('#faceRegisterBtn').addEventListener('click', async () => {
-  const name = $('#faceNameInput').value.trim();
-  const files = $('#faceImagesInput').files;
-  const statusEl = $('#faceRegisterStatus');
-
-  if (!name) { showToast('Enter a person name', true); return; }
-  if (!files.length) { showToast('Select at least one image', true); return; }
-
-  statusEl.textContent = 'Registering…';
-  statusEl.className = 'face-status';
-
-  const fd = new FormData();
-  fd.append('name', name);
-  for (const f of files) fd.append('images', f);
-
-  try {
-    const r = await fetch('/api/faces/register', { method: 'POST', body: fd });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.detail || 'Registration failed');
-    const ok = data.results.filter(x => x.success).length;
-    const fail = data.results.length - ok;
-    statusEl.textContent = `Registered ${ok} image(s) for "${name}"${fail ? ` (${fail} failed)` : ''}.`;
-    statusEl.className = 'face-status face-status-ok';
-    $('#faceNameInput').value = '';
-    $('#faceImagesInput').value = '';
-    $('#faceFileLabel').textContent = 'Choose images…';
-    loadFaceList();
-  } catch (e) {
-    statusEl.textContent = 'Error: ' + e.message;
-    statusEl.className = 'face-status face-status-error';
-  }
-});
-
-$('#faceListRefreshBtn').addEventListener('click', loadFaceList);

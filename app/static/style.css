@@ -491,37 +491,25 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--ok);
 }
 
-/* ===== Face Management Modal ===== */
-.face-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.85);
-  z-index: 300;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  backdrop-filter: blur(4px);
+/* ===== Face Management Page ===== */
+.faces-layout {
+  padding: 24px 32px;
+  min-height: calc(100vh - 56px);
 }
 
-.face-modal-inner {
-  background: var(--bg-card);
-  border: 1px solid var(--line-strong);
-  border-radius: 4px;
-  width: min(540px, 92vw);
-  max-height: 82vh;
+.faces-container {
+  width: 100%;
   display: flex;
   flex-direction: column;
-  box-shadow: var(--shadow);
 }
 
 .face-modal-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
-  background: var(--bg-elev);
+  padding: 0 0 16px 0;
   border-bottom: 1px solid var(--line);
-  flex-shrink: 0;
+  margin-bottom: 20px;
 }
 
 .face-modal-title {
@@ -532,25 +520,12 @@ button { font-family: inherit; cursor: pointer; }
   color: var(--ok);
 }
 
-.face-modal-close {
-  width: 28px;
-  height: 28px;
-  background: transparent;
-  border: 1px solid var(--line-strong);
-  color: var(--text-dim);
-  font-size: 20px;
-  line-height: 1;
-  border-radius: 2px;
-  cursor: pointer;
-}
-.face-modal-close:hover { border-color: var(--bad); color: var(--bad); }
+
 
 .face-modal-body {
-  padding: 16px;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 32px;
 }
 .face-modal-body::-webkit-scrollbar { width: 6px; }
 .face-modal-body::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
@@ -682,3 +657,48 @@ button { font-family: inherit; cursor: pointer; }
   transition: all 0.12s;
 }
 .face-del-btn:hover { border-color: var(--bad); color: var(--bad); }
+
+/* ===== Recent Face Grid ===== */
+.recent-face-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 16px;
+}
+.recent-face-grid::-webkit-scrollbar { width: 6px; }
+.recent-face-grid::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+
+.recent-face-card {
+  position: relative;
+  background: #000;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  overflow: hidden;
+  cursor: pointer;
+  aspect-ratio: 1;
+  transition: all 0.12s;
+}
+.recent-face-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+.recent-face-card.selected {
+  border-color: var(--ok);
+  box-shadow: 0 0 8px rgba(74, 222, 128, 0.4);
+}
+.recent-face-label {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-size: 9px;
+  text-align: center;
+  padding: 2px 0;
+  font-family: "JetBrains Mono", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+}

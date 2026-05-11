@@ -43,9 +43,12 @@ TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), "templates")
 RECORDINGS_DIR = os.path.join(BASE_DIR, "recordings")
 SNAPSHOTS_DIR = os.path.join(BASE_DIR, "snapshots")
 ALERTS_DIR = os.path.join(BASE_DIR, "alerts")
+RECENT_FACES_DIR = os.path.join(BASE_DIR, "recent_faces")
 
-for d in (RECORDINGS_DIR, SNAPSHOTS_DIR, ALERTS_DIR):
+for d in (RECORDINGS_DIR, SNAPSHOTS_DIR, ALERTS_DIR, RECENT_FACES_DIR):
     os.makedirs(d, exist_ok=True)
+
+RECENT_FACES_COOLDOWN = {}
 
 
 def load_config():
@@ -86,6 +89,33 @@ def make_on_frame(cam_cfg: dict):
         if models and (state["frame_count"] % INFERENCE_INTERVAL == 0):
             try:
                 annotated, detections = engine.infer(frame, models, alert_classes, min_conf)
+                for det in detections:
+                    if det.get("class") == "face":
+                        label = det.get("name", "Unknown")
+                        cam_lbl_key = f"{cam_id}_{label}"
+                        now_sec = time.time()
+                        if now_sec - RECENT_FACES_COOLDOWN.get(cam_lbl_key, 0) > 2.0:
+                            RECENT_FACES_COOLDOWN[cam_lbl_key] = now_sec
+                            x1, y1, x2, y2 = det.get("bbox", [0,0,0,0])
+                            h, w = frame.shape[:2]
+                            fh, fw = y2 - y1, x2 - x1
+                            my, mx = int(fh * 0.2), int(fw * 0.2)
+                            nx1, ny1 = max(0, x1 - mx), max(0, y1 - my)
+                            nx2, ny2 = min(w, x2 + mx), min(h, y2 + my)
+                            face_crop = frame[ny1:ny2, nx1:nx2]
+                            if face_crop.size > 0:
+                                ts_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+                                safe_lbl = "".join(c for c in label if c.isalnum() or c in " _-")
+                                label_dir = os.path.join(RECENT_FACES_DIR, safe_lbl)
+                                os.makedirs(label_dir, exist_ok=True)
+                                fn = f"{safe_lbl}_{cam_id}_{ts_str}.jpg"
+                                cv2.imwrite(os.path.join(label_dir, fn), face_crop)
+                                files = [os.path.join(label_dir, f) for f in os.listdir(label_dir) if f.endswith(".jpg")]
+                                if len(files) > 100:
+                                    files.sort(key=os.path.getmtime)
+                                    for f in files[:-100]:
+                                        try: os.remove(f)
+                                        except: pass
             except Exception:
                 traceback.print_exc()
                 annotated = frame
@@ -164,6 +194,10 @@ def _shutdown():
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
     return templates.TemplateResponse(request, "index.html", {})
+
+@app.get("/faces", response_class=HTMLResponse)
+def faces_page(request: Request):
+    return templates.TemplateResponse(request, "faces.html", {})
 
 
 def _deepstack_url() -> str:
@@ -244,7 +278,7 @@ def test_email():
 def faces_list():
     url = f"{_deepstack_url()}/v1/vision/face/list"
     try:
-        resp = _requests.get(url, timeout=5.0)
+        resp = _requests.post(url, timeout=5.0)
         result = resp.json()
     except Exception as e:
         raise HTTPException(503, f"DeepStack unreachable: {e}")
@@ -256,30 +290,116 @@ def faces_list():
 @app.post("/api/faces/register")
 async def faces_register(
     name: str = Form(...),
-    images: list[UploadFile] = File(...),
+    images: Optional[list[UploadFile]] = File(None),
+    recent_filenames: Optional[str] = Form(None),
 ):
     import asyncio
     url = f"{_deepstack_url()}/v1/vision/face/register"
     results = []
-    for img_file in images:
-        img_bytes = await img_file.read()
-        def _post(b=img_bytes, fn=img_file.filename):
+    
+    tasks_to_run = []
+    
+    if images and images[0].filename:
+        for img_file in images:
+            img_bytes = await img_file.read()
+            tasks_to_run.append((img_file.filename, img_bytes, False))
+            
+    if recent_filenames:
+        import json
+        try:
+            rnames = json.loads(recent_filenames)
+        except:
+            rnames = []
+        for rname in rnames:
+            # rname is expected to be "label/filename.jpg"
+            p = os.path.join(RECENT_FACES_DIR, rname.replace("\\", "/"))
+            if os.path.exists(p) and RECENT_FACES_DIR in os.path.abspath(p):
+                with open(p, "rb") as f:
+                    tasks_to_run.append((rname, f.read(), True))
+
+    for fn, img_bytes, is_recent in tasks_to_run:
+        def _post(b=img_bytes, fname=fn):
+            rec_url = f"{_deepstack_url()}/v1/vision/face/recognize"
+            rec_resp = _requests.post(
+                rec_url,
+                files={"image": (fn, b, "image/jpeg")},
+                timeout=10.0
+            ).json()
+            
+            if rec_resp.get("success"):
+                faces = rec_resp.get("predictions", [])
+                if len(faces) == 0:
+                    return {"success": False, "message": "No faces found in image."}
+                if len(faces) > 1:
+                    return {"success": False, "message": f"Multiple faces ({len(faces)}) found. Please use photos with only one person."}
+
             return _requests.post(
                 url,
-                files={"image": (fn, b, "image/jpeg")},
+                files={"image": (fname, b, "image/jpeg")},
                 data={"userid": name},
                 timeout=10.0,
             ).json()
         try:
             result = await asyncio.to_thread(_post)
+            if result.get("success") and is_recent:
+                p = os.path.join(RECENT_FACES_DIR, os.path.basename(fn))
+                if os.path.exists(p):
+                    try: os.remove(p)
+                    except: pass
             results.append({
-                "filename": img_file.filename,
+                "filename": fn,
                 "success": result.get("success", False),
                 "message": result.get("message", ""),
             })
         except Exception as e:
-            results.append({"filename": img_file.filename, "success": False, "message": str(e)})
+            results.append({"filename": fn, "success": False, "message": str(e)})
     return {"registered": name, "results": results}
+
+
+@app.get("/api/faces/recent")
+def list_recent_faces():
+    out = []
+    if os.path.exists(RECENT_FACES_DIR):
+        for root, dirs, files in os.walk(RECENT_FACES_DIR):
+            for f in files:
+                if f.endswith(".jpg"):
+                    full_path = os.path.join(root, f)
+                    rel_path = os.path.relpath(full_path, RECENT_FACES_DIR).replace("\\", "/")
+                    parts = f.rsplit("_", 3)
+                    label = parts[0] if len(parts) >= 4 else "Unknown"
+                    mtime = os.path.getmtime(full_path)
+                    out.append({"filename": rel_path, "label": label, "mtime": mtime})
+        out.sort(key=lambda x: x["mtime"], reverse=True)
+    return {"recent": out}
+
+
+@app.post("/api/faces/recent/delete")
+async def delete_recent_faces(filenames: str = Form(...)):
+    import json
+    try:
+        fnames = json.loads(filenames)
+    except:
+        fnames = []
+        
+    deleted = 0
+    for fn in fnames:
+        # fn is expected to be "label/filename.jpg"
+        p = os.path.join(RECENT_FACES_DIR, fn.replace("\\", "/"))
+        if os.path.exists(p) and RECENT_FACES_DIR in os.path.abspath(p):
+            try: 
+                os.remove(p)
+                deleted += 1
+            except: 
+                pass
+    return {"success": True, "deleted": deleted}
+
+
+@app.get("/api/faces/recent/{label}/{filename}")
+def get_recent_face(label: str, filename: str):
+    path = os.path.join(RECENT_FACES_DIR, label, os.path.basename(filename))
+    if not os.path.exists(path):
+        raise HTTPException(404, "face not found")
+    return FileResponse(path, media_type="image/jpeg")
 
 
 @app.delete("/api/faces/{name}")

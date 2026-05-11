@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ServeLens - Face Management</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=5" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">▣</span>
+      <span class="brand-name">ServeLens<span class="brand-thin"> AI</span></span>
+      <span class="brand-rev">v1.0</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="actions">
+      <a href="/" class="btn">← Back to Dashboard</a>
+    </div>
+  </header>
+
+  <main class="faces-layout">
+    <div class="faces-container">
+      <div class="face-modal-head">
+        <span class="face-modal-title">⊙ FACE MANAGEMENT</span>
+      </div>
+      <div class="face-modal-body">
+
+        <div class="face-section">
+          <div class="face-section-label">REGISTER NEW FACE</div>
+          <p class="face-hint">Upload one or more clear photos of a person to train the recognizer. More images improve accuracy.</p>
+          <div class="face-register-form">
+            <input type="text" id="faceNameInput" class="face-input" placeholder="Person name…" autocomplete="off" />
+            <label class="face-file-label" for="faceImagesInput">
+              <input type="file" id="faceImagesInput" multiple accept="image/jpeg,image/png,image/jpg" />
+              <span id="faceFileLabel">Choose images…</span>
+            </label>
+            <button id="faceRegisterBtn" class="btn">+ Register</button>
+          </div>
+          <div id="faceRegisterStatus" class="face-status"></div>
+        </div>
+
+        <div class="face-section">
+          <div class="face-section-header">
+            <span class="face-section-label">RECENT FACES</span>
+            <div style="display: flex; gap: 10px;">
+              <select id="recentFaceFilter" class="face-input" style="padding: 4px 8px; width: auto;">
+                <option value="all">All Labels</option>
+              </select>
+              <button id="recentFaceRefreshBtn" class="btn">↻ Refresh</button>
+            </div>
+          </div>
+          <div id="recentFaceList" class="recent-face-grid">
+            <span class="face-list-empty">Loading…</span>
+          </div>
+          <div style="margin-top: 15px; display: flex; gap: 10px;">
+            <input type="text" id="recentFaceNameInput" class="face-input" placeholder="Train selected as name…" autocomplete="off" style="flex: 1;" />
+            <button id="recentFaceTrainBtn" class="btn">+ Train Selected</button>
+            <button id="recentFaceDeleteBtn" class="btn danger" style="margin-left: auto;">Delete Selected</button>
+          </div>
+        </div>
+
+        <div class="face-section">
+          <div class="face-section-header">
+            <span class="face-section-label">REGISTERED FACES</span>
+            <button id="faceListRefreshBtn" class="btn">↻ Refresh</button>
+          </div>
+          <div id="faceList" class="face-list">
+            <span class="face-list-empty">Loading…</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <div id="toast" class="toast"></div>
+
+  <script src="/static/faces.js?v=6"></script>
+</body>
+</html>
