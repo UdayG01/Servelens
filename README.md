@@ -19,6 +19,14 @@ A real-time, browser-based surveillance platform with AI-powered object detectio
 | Main Entrance | Person Detector (YOLOv8) | People |
 | Face Recognizer | Face Recognition (DeepStack) | Known / unknown faces with names |
 | ANPR Gate | License Plate Reader (YOLO + EasyOCR) | Vehicle plates + extracted text |
+| Fire & Smoke | FireNET (DeepStack custom model) | Fire and smoke |
+
+### Fire & Smoke Detection
+- Powered by **DeepStack FireNET** — a custom model loaded into the same DeepStack container used for face recognition
+- Orange-red bounding box = fire detected, grey bounding box = smoke detected
+- Early smoke detection warns before visible flames appear
+- Alert cooldown keeps notifications manageable in active environments
+- See [Custom DeepStack Models](#custom-deepstack-models--firenet) for setup instructions
 
 ### Face Recognition
 - Powered by **DeepStack** running locally as a Docker container (no cloud, fully private)
@@ -101,9 +109,35 @@ To stop it:
 docker compose down
 ```
 
-If you don't run DeepStack, the Face Recognizer camera tile will show a connection error on the stream, but all other cameras continue to work normally.
+If you don't run DeepStack, the Face Recognizer and Fire & Smoke camera tiles will show a connection error on their streams, but all other cameras continue to work normally.
 
-### 3. Add sample videos
+### 3. Download custom DeepStack models
+
+The Fire & Smoke camera uses the **FireNET** model served through DeepStack's custom model endpoint. The model file is not included in the repository (it is a large binary — see `.gitignore`). Download it once and place it in `deepstack_models/`.
+
+**Download FireNET:**
+
+1. Go to the FireNET releases page:
+   ```
+   https://github.com/DeepQuestAI/DeepStack_FireNET
+   ```
+2. Download `fire-detection.pt` from the repository's releases or the `models/` folder.
+3. Place it here — the filename must match exactly:
+   ```
+   deepstack_models/
+   └── fire-detection.pt
+   ```
+4. Restart DeepStack so it picks up the new model:
+   ```cmd
+   docker compose restart deepstack
+   ```
+5. Verify it loaded:
+   ```cmd
+   curl -X POST http://localhost:80/v1/vision/custom/fire-detection -F "image=@any_image.jpg"
+   ```
+   A response of `{"success": true, ...}` confirms the model is active.
+
+### 4. Add sample videos
 
 Place test videos in the `videos/` directory:
 
@@ -115,7 +149,7 @@ Place test videos in the `videos/` directory:
 
 Videos loop automatically. Replace any `source` value with an RTSP URL to use a real camera.
 
-### 4. Configure email alerts
+### 5. Configure email alerts
 
 Edit `config/config.json` — find the `email` section:
 
@@ -134,7 +168,7 @@ Edit `config/config.json` — find the `email` section:
 The `sender_app_password` is a Gmail App Password, not your account password.
 Generate one at: https://myaccount.google.com/apppasswords (requires 2-Step Verification to be enabled).
 
-### 5. Run the app
+### 6. Run the app
 
 ```cmd
 run.bat
@@ -212,6 +246,69 @@ curl -X DELETE "http://localhost:8000/api/faces/Jane%20Smith"
 
 ---
 
+## Custom DeepStack Models — FireNET
+
+DeepStack supports loading any custom model via its `/v1/vision/custom/{model_name}` endpoint. ServeLens uses this for fire and smoke detection through the **FireNET** model.
+
+### How it works
+
+```
+deepstack_models/
+└── fire-detection.pt          ← model file on the host
+        ↓ mounted via docker-compose.yml
+/modelstore/detection/         ← inside the DeepStack container
+        ↓ served automatically at
+POST /v1/vision/custom/fire-detection
+```
+
+The `docker-compose.yml` mounts `./deepstack_models` into the container at `/modelstore/detection`. Any `.pt` file placed there becomes available as an endpoint named after the file (without extension). No container rebuild is needed — only a restart.
+
+### FireNET setup (step by step)
+
+| Step | Action |
+|------|--------|
+| 1 | Go to `https://github.com/DeepQuestAI/DeepStack_FireNET` |
+| 2 | Download `fire-detection.pt` from the releases or `models/` folder |
+| 3 | Place it at `deepstack_models/fire-detection.pt` |
+| 4 | Run `docker compose restart deepstack` |
+| 5 | Verify: `curl -X POST http://localhost:80/v1/vision/custom/fire-detection -F "image=@any.jpg"` |
+
+### How it maps to config.json
+
+```json
+"fire_smoke_detector": {
+    "type": "deepstack_custom",
+    "deepstack_url": "http://localhost:80",
+    "model_name": "fire-detection"
+}
+```
+
+- `type: "deepstack_custom"` — routes inference through `DeepStackDetector` in `app/deepstack_detector.py`
+- `model_name` — must match the filename without `.pt`
+- `deepstack_url` — change if DeepStack runs on a different host or port
+
+### Adding a different custom model
+
+The same pattern works for any DeepStack-compatible `.pt` model:
+
+1. Place `your-model.pt` in `deepstack_models/`
+2. Run `docker compose restart deepstack`
+3. Add a model entry to `config/config.json`:
+   ```json
+   "your_detector": {
+       "type": "deepstack_custom",
+       "deepstack_url": "http://localhost:80",
+       "model_name": "your-model"
+   }
+   ```
+4. Reference it in the camera's `"models"` array and set `"alert_classes"` to the label names the model outputs.
+
+### Why model files are not in the repository
+
+DeepStack model files are large binaries (50–200 MB each). They are excluded via `.gitignore` (`deepstack_models/*.pt`). The `deepstack_models/` directory itself is tracked via `.gitkeep` so the mount point exists after a fresh clone. Each developer downloads the model files separately using the instructions above.
+
+---
+
 ## Configuration Reference
 
 ### Camera fields (`config/config.json` → `cameras` array)
@@ -229,22 +326,28 @@ curl -X DELETE "http://localhost:8000/api/faces/Jane%20Smith"
 
 ### Model types
 
-| Type | Description |
-|------|-------------|
-| `yolo` | YOLOv8 object detection — detects any COCO class |
-| `anpr` | License plate YOLO detector + EasyOCR text extraction |
-| `deepstack_face` | DeepStack face detection and recognition via HTTP |
+| Type | Description | Required fields |
+|------|-------------|-----------------|
+| `yolo` | YOLOv8 object detection — detects any COCO class | `weights`, `img_size`, `device` |
+| `anpr` | License plate YOLO detector + EasyOCR text extraction | `weights`, `img_size`, `device`, `ocr_languages`, `ocr_min_confidence` |
+| `deepstack_face` | DeepStack face recognition via HTTP | `deepstack_url` |
+| `deepstack_custom` | Any custom model served by DeepStack | `deepstack_url`, `model_name` |
 
-### DeepStack face model config
+### DeepStack model config examples
 
 ```json
 "face_recognizer": {
-  "type": "deepstack_face",
-  "deepstack_url": "http://localhost:80"
+    "type": "deepstack_face",
+    "deepstack_url": "http://localhost:80"
+},
+"fire_smoke_detector": {
+    "type": "deepstack_custom",
+    "deepstack_url": "http://localhost:80",
+    "model_name": "fire-detection"
 }
 ```
 
-Change `deepstack_url` if DeepStack is running on a different host or port.
+`deepstack_url` defaults to `http://localhost:80`. Change it if DeepStack runs on a different host or port (e.g. a separate machine on the network).
 
 ### UI / performance settings
 
@@ -252,6 +355,10 @@ Change `deepstack_url` if DeepStack is running on a different host or port.
 |-------|---------|-------------|
 | `inference_interval_frames` | 5 | Run AI every Nth frame. Raise to reduce CPU load. |
 | `jpeg_quality` | 70 | MJPEG stream quality (0–100). Lower saves bandwidth. |
+| `frame_width` | _(none)_ | Resize every frame to this width before inference and streaming. |
+| `frame_height` | _(none)_ | Resize every frame to this height. Must be set together with `frame_width`. |
+
+`frame_width` and `frame_height` can also be set per-camera to override the global value for that camera only.
 
 ---
 
@@ -278,6 +385,7 @@ Servelens/
 │   ├── camera_stream.py       Per-camera OpenCV capture thread (RTSP / file / webcam)
 │   ├── inference_engine.py    Model loader and inference dispatcher
 │   ├── face_recognizer.py     DeepStack face recognition HTTP client
+│   ├── deepstack_detector.py  Generic DeepStack custom model client (fire, smoke, etc.)
 │   ├── anpr.py                YOLO plate detector + EasyOCR pipeline
 │   ├── alert_manager.py       Cooldown logic, snapshots, CSV log, Gmail SMTP
 │   ├── recorder.py            Continuous and event-clip MP4 recording
@@ -288,12 +396,16 @@ Servelens/
 │       └── index.html         Dashboard HTML + face management modal
 ├── config/
 │   └── config.json            All configuration (cameras, models, email, recording)
-├── models/                    YOLO weight files (.pt) — downloaded by setup.bat
-├── videos/                    Sample test videos — replace with real streams
-├── snapshots/                 Alert JPEG snapshots (auto-created)
-├── recordings/                MP4 recordings (auto-created)
+├── deepstack_models/          Custom DeepStack model files (.pt) — not in repo, download separately
+│   └── .gitkeep               Keeps the directory tracked in git after a fresh clone
+├── models/                    YOLO weight files (.pt) — downloaded by setup.bat, not in repo
+├── videos/                    Sample test videos — not in repo, provide your own
+├── snapshots/                 Alert JPEG snapshots (auto-created at runtime)
+├── recordings/                MP4 recordings (auto-created at runtime)
 ├── alerts/
-│   └── alerts.csv             Running alert log
+│   └── alerts.csv             Running alert log (auto-created at runtime)
+├── docker-compose.yml         DeepStack container definition
+├── .env.example               Environment variable template — copy to .env and configure
 ├── requirements.txt
 ├── run.bat
 └── setup.bat
@@ -337,5 +449,26 @@ Servelens/
 
 - **No authentication** is built in — restrict access to your local network, or place the app behind a reverse proxy (e.g. Nginx + Basic Auth) before exposing it externally.
 - **Storage grows unbounded** — snapshots and recordings accumulate indefinitely. Set up a scheduled cleanup task for long-running deployments.
-- **DeepStack face database** persists in the `localstorage` Docker volume. It survives container restarts as long as you use the same volume name.
+- **DeepStack face database** persists in the `deepstack_data` Docker volume. It survives container restarts and `docker compose down` as long as you use the same volume name.
 - **ANPR accuracy** — the included plate model works for general plates. For Indian plates, fine-tuning a model on Indian plate datasets (available on Roboflow) gives significantly better results in production.
+
+
+
+## For live camera
+
+Change any camera's `source` in `config/config.json` from a video file to your RTSP URL:
+
+```json
+{
+    "id": "cam2",
+    "name": "Face Recognizer",
+    "source": "rtsp://admin:yourpassword@192.168.1.100:554/stream2",
+    "enabled": true,
+    "models": ["face_recognizer"],
+    "alert_classes": ["face"],
+    "min_confidence": 0.75,
+    "alert_cooldown_sec": 30
+}
+```
+
+> **Security:** Do not commit `config/config.json` with real credentials to a public repository. Add it to `.gitignore`, or replace credentials with environment variable references before committing.

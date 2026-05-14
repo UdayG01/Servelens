@@ -8,10 +8,12 @@ __pycache__/
 *.py[cod]
 *.pyo
 
-# Model weights (large binaries — download via setup.bat)
+# Model weights (large binaries — download separately)
 models/*.pt
 models/*.onnx
 models/*.engine
+deepstack_models/*.pt
+deepstack_models/*.onnx
 
 # Runtime-generated data
 snapshots/

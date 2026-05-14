@@ -11,7 +11,7 @@ in memory for the streaming endpoint to fetch.
 import os
 import time
 import threading
-from typing import Optional, Callable
+from typing import Optional, Callable, Tuple
 
 import cv2
 import numpy as np
@@ -42,6 +42,7 @@ class CameraStream(threading.Thread):
         source: str,
         on_frame: Callable[[str, np.ndarray], np.ndarray],
         jpeg_quality: int = 70,
+        resize_to: Optional[Tuple[int, int]] = None,
     ):
         super().__init__(daemon=True, name=f"cam-{cam_id}")
         self.cam_id = cam_id
@@ -50,6 +51,8 @@ class CameraStream(threading.Thread):
         self.kind = _classify(source)
         self.on_frame = on_frame
         self.jpeg_quality = jpeg_quality
+        # (width, height) — applied to every frame before inference and MJPEG encoding
+        self._resize_to = resize_to
 
         self._running = False
         self._cap = None
@@ -105,6 +108,10 @@ class CameraStream(threading.Thread):
 
                     self._frame_count += 1
                     self._fps_window_frames += 1
+
+                    if self._resize_to:
+                        frame = cv2.resize(frame, self._resize_to,
+                                           interpolation=cv2.INTER_LINEAR)
 
                     # callback returns annotated frame (or original if no inference this tick)
                     annotated = self.on_frame(self.cam_id, frame)

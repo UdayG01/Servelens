@@ -3,17 +3,17 @@
         {
             "id": "cam1",
             "name": "Main Entrance",
-            "source": "videos/sample1.mp4",
+            "source": "videos/person_detector_sample.mp4",
             "enabled": true,
             "models": ["person_detector"],
             "alert_classes": ["person"],
-            "min_confidence": 0.5,
+            "min_confidence": 0.75,
             "alert_cooldown_sec": 60
         },
         {
             "id": "cam2",
             "name": "Face Recognizer",
-            "source":  "rtsp://admin:Twa1cxxn@10.0.0.3:554/stream2",
+            "source": "videos/face_recognition_sample.mp4",
             "enabled": true,
             "models": ["face_recognizer"],
             "alert_classes": ["face"],
@@ -23,12 +23,22 @@
         {
             "id": "cam3",
             "name": "ANPR Gate",
-            "source": "videos/sample3.mp4",
+            "source": "videos/sample1.mp4",
             "enabled": true,
             "models": ["plate_reader"],
             "alert_classes": ["license_plate"],
             "min_confidence": 0.4,
             "alert_cooldown_sec": 30
+        },
+        {
+            "id": "cam4",
+            "name": "Fire & Smoke",
+            "source": "videos/fire_detection_sample.mp4",
+            "enabled": true,
+            "models": ["fire_smoke_detector"],
+            "alert_classes": ["fire", "smoke"],
+            "min_confidence": 0.4,
+            "alert_cooldown_sec": 20
         }
     ],
     "models": {
@@ -46,6 +56,11 @@
         },
         "face_recognizer": {
             "type": "deepstack_face",
+            "deepstack_url": "http://localhost:80"
+        },
+        "fire_smoke_detector": {
+            "type": "deepstack_custom",
+            "model_name": "fire-detection",
             "deepstack_url": "http://localhost:80"
         },
         "plate_reader": {
@@ -74,6 +89,8 @@
     },
     "ui": {
         "inference_interval_frames": 5,
-        "jpeg_quality": 70
+        "jpeg_quality": 70,
+        "frame_width": 854,
+        "frame_height": 480
     }
 }

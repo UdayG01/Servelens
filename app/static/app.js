@@ -34,6 +34,9 @@ function buildTile(cam) {
   const faceBtnHtml = cam.face_recognition
     ? `<button class="face-btn" data-facecam="${cam.id}">⊙ FACES</button>`
     : '';
+  const countBtnHtml = cam.supports_count
+    ? `<button class="count-btn" data-countcam="${cam.id}">⊕ COUNT</button>`
+    : '';
   tile.innerHTML = `
     <div class="tile-head">
       <span class="tile-id">${cam.id.toUpperCase()}</span>
@@ -51,6 +54,7 @@ function buildTile(cam) {
       <span class="models">${(cam.models || []).join(' · ').toUpperCase() || 'NO MODEL'}</span>
       <span class="fps">-- FPS</span>
       ${faceBtnHtml}
+      ${countBtnHtml}
       <button class="rec-btn" data-rec>● REC</button>
     </div>
   `;
@@ -72,6 +76,11 @@ function buildTile(cam) {
     tile.querySelector('[data-facecam]').addEventListener('click', () => {
       window.location.href = '/faces';
     });
+  }
+
+  if (cam.supports_count) {
+    const countBtn = tile.querySelector('[data-countcam]');
+    countBtn.addEventListener('click', () => toggleCount(cam.id, countBtn));
   }
 
   const recBtn = tile.querySelector('[data-rec]');
@@ -274,3 +283,35 @@ refreshCameras();
 refreshAlerts();
 setInterval(refreshCameras, 2500);
 setInterval(refreshAlerts, 2000);
+
+// ===== People Count =====
+
+const _countActive = new Map();
+const _countIntervals = new Map();
+
+function toggleCount(camId, btn) {
+  if (_countActive.get(camId)) {
+    clearInterval(_countIntervals.get(camId));
+    _countActive.set(camId, false);
+    _countIntervals.delete(camId);
+    btn.textContent = '⊕ COUNT';
+    btn.classList.remove('active');
+  } else {
+    _countActive.set(camId, true);
+    btn.classList.add('active');
+    _pollCount(camId, btn);
+    _countIntervals.set(camId, setInterval(() => _pollCount(camId, btn), 2000));
+  }
+}
+
+async function _pollCount(camId, btn) {
+  try {
+    const r = await fetch(`/api/count/${camId}`);
+    if (!r.ok) throw new Error();
+    const data = await r.json();
+    const n = data.counts?.person ?? data.total ?? 0;
+    btn.textContent = `⊕ ${n} ${n === 1 ? 'PERSON' : 'PEOPLE'}`;
+  } catch (_) {
+    btn.textContent = '⊕ COUNT';
+  }
+}

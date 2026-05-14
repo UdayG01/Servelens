@@ -251,6 +251,61 @@ docker compose down
 
 ---
 
+## 8a. Download Custom DeepStack Models (FireNET — Fire & Smoke Detection)
+
+The Fire & Smoke camera uses the **FireNET** model loaded into DeepStack as a custom model. The model file is not bundled in the repository — download it once before starting ServeLens.
+
+### How it works
+
+```
+deepstack_models/
+└── fire-detection.pt          ← model file you download
+        ↓ mounted by docker-compose.yml into
+/modelstore/detection/         ← inside the DeepStack container
+        ↓ DeepStack serves it at
+POST /v1/vision/custom/fire-detection
+```
+
+### Steps
+
+1. Go to the FireNET repository:
+   ```
+   https://github.com/DeepQuestAI/DeepStack_FireNET
+   ```
+
+2. Download `fire-detection.pt` from the repository's `models/` folder or the Releases page. On the Pi, you can use `wget` directly if a direct download link is available:
+
+   ```bash
+   wget -O deepstack_models/fire-detection.pt \
+     <direct-link-from-releases>
+   ```
+
+   Alternatively, download the file on another machine and copy it to the Pi:
+
+   ```bash
+   scp fire-detection.pt pi@servelens.local:~/servelens/deepstack_models/fire-detection.pt
+   ```
+
+3. The filename must be exactly `fire-detection.pt` — this is what `config/config.json` references via `"model_name": "fire-detection"`.
+
+4. Restart DeepStack to load the model:
+
+   ```bash
+   docker compose restart deepstack
+   ```
+
+5. Verify the model loaded:
+
+   ```bash
+   curl -X POST http://localhost:80/v1/vision/custom/fire-detection \
+     -F "image=@any_image.jpg"
+   # Expected: {"success": true, ...}
+   ```
+
+> **Adding other custom models:** The same pattern works for any DeepStack-compatible `.pt` model. Place the file in `deepstack_models/`, restart DeepStack, then add a `"type": "deepstack_custom"` entry to `config/config.json` with `"model_name"` matching the filename without `.pt`.
+
+---
+
 ## 9. Create Sample Video Directories
 
 ```bash
@@ -435,7 +490,8 @@ Then use it as a V4L2 device:
 | `ImportError: libGL.so.1` | Missing system lib | `sudo apt install libgl1` |
 | `torch` install hangs | Slow pip on Pi | Add `--no-cache-dir`, try again |
 | Stream shows `STREAM ERROR` | Wrong source path or RTSP URL | Test RTSP in VLC on another device first |
-| Face recognizer shows `DeepStack:` error | DeepStack not running | `docker start deepstack` |
+| Face recognizer shows `DeepStack:` error | DeepStack not running | `docker compose up -d` |
+| Fire & Smoke tile shows DeepStack error | `fire-detection.pt` missing | Download the file to `deepstack_models/` then `docker compose restart deepstack` |
 | DeepStack container exits immediately | Wrong image for Pi | Check `.env` — the Pi line (`arm64v8-cpu`) must be uncommented, not the x86 line |
 | Very high CPU temperature | Sustained inference load | Add active cooling, raise `inference_interval_frames` |
 | `OSError: [Errno 28] No space left` | Snapshots / recordings filled the SD card | Delete old files in `snapshots/` and `recordings/` |

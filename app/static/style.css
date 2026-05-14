@@ -473,6 +473,30 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 2px;
 }
 
+/* ===== Count button in tile footer ===== */
+.tile-foot .count-btn {
+  background: transparent;
+  border: 1px solid var(--line-strong);
+  color: var(--text-dim);
+  padding: 3px 9px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  border-radius: 2px;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+.tile-foot .count-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.tile-foot .count-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ===== Faces button in tile footer ===== */
 .tile-foot .face-btn {
   background: transparent;

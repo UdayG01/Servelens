@@ -128,6 +128,8 @@ def make_on_frame(cam_cfg: dict):
         cv2.putText(annotated, f"{cam_name}  {ts}",
                     (4, h - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (255, 255, 255), 1)
 
+        CAMERAS[cam_id]["last_detections"] = detections
+
         if detections and alert_mgr.should_alert(cam_id):
             alert_mgr.trigger_alert(cam_id, cam_name, annotated, detections)
             if auto_event:
@@ -162,12 +164,19 @@ def start_cameras():
             "recorder": recorder,
             "frame_count": 0,
             "stream": None,
+            "last_detections": [],
         }
+
+        ui_cfg = CONFIG.get("ui", {})
+        rw = cam_cfg.get("frame_width") or ui_cfg.get("frame_width")
+        rh = cam_cfg.get("frame_height") or ui_cfg.get("frame_height")
+        resize_to = (int(rw), int(rh)) if rw and rh else None
 
         stream = CameraStream(
             cam_id=cam_id, name=cam_cfg["name"], source=source,
             on_frame=make_on_frame(cam_cfg),
-            jpeg_quality=int(CONFIG.get("ui", {}).get("jpeg_quality", 70)),
+            jpeg_quality=int(ui_cfg.get("jpeg_quality", 70)),
+            resize_to=resize_to,
         )
         CAMERAS[cam_id]["stream"] = stream
         stream.start_capture()
@@ -216,6 +225,9 @@ def list_cameras():
             CONFIG["models"].get(m, {}).get("type") == "deepstack_face"
             for m in c["config"].get("models", [])
         )
+        supports_count = "person" in [
+            cl.lower() for cl in c["config"].get("alert_classes", [])
+        ]
         out.append({
             "id": cam_id,
             "name": c["config"]["name"],
@@ -225,6 +237,7 @@ def list_cameras():
             "fps": round(s.current_fps, 1) if s else 0.0,
             "recording": c["recorder"].is_continuous(),
             "face_recognition": has_face_rec,
+            "supports_count": supports_count,
         })
     return {"cameras": out}
 
@@ -413,6 +426,20 @@ def faces_delete(name: str):
     if not result.get("success"):
         raise HTTPException(502, result.get("error", "DeepStack error"))
     return {"deleted": name, "success": True}
+
+
+@app.get("/api/count/{cam_id}")
+def get_count(cam_id: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(404, "unknown camera")
+    dets = CAMERAS[cam_id].get("last_detections", [])
+    alert_classes = {c.lower() for c in CAMERAS[cam_id]["config"].get("alert_classes", [])}
+    counts: Dict[str, int] = {}
+    for d in dets:
+        cls = d["class"].lower()
+        if cls in alert_classes:
+            counts[cls] = counts.get(cls, 0) + 1
+    return {"cam_id": cam_id, "counts": counts, "total": sum(counts.values())}
 
 
 @app.post("/api/record/{cam_id}")

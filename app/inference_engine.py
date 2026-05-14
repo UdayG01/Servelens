@@ -10,6 +10,7 @@ import numpy as np
 
 from .anpr import ANPRDetector
 from .face_recognizer import FaceRecognizer
+from .deepstack_detector import DeepStackDetector
 
 
 class InferenceEngine:
@@ -42,6 +43,11 @@ class InferenceEngine:
                 model = FaceRecognizer(
                     deepstack_url=cfg.get("deepstack_url", "http://localhost:80"),
                 )
+            elif mtype == "deepstack_custom":
+                model = DeepStackDetector(
+                    deepstack_url=cfg.get("deepstack_url", "http://localhost:80"),
+                    model_name=cfg["model_name"],
+                )
             else:
                 raise ValueError(f"Unknown model type: {mtype}")
             self._models[name] = model
@@ -64,7 +70,7 @@ class InferenceEngine:
             cfg = self.models_config[name]
             mtype = cfg.get("type", "yolo")
 
-            if mtype in ("anpr", "deepstack_face"):
+            if mtype in ("anpr", "deepstack_face", "deepstack_custom"):
                 with self._locks[name]:
                     annotated, dets = model.infer(annotated, min_confidence)
                 all_dets.extend(dets)
