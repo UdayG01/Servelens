@@ -273,17 +273,17 @@ POST /v1/vision/custom/fire-detection
    https://github.com/DeepQuestAI/DeepStack_FireNET
    ```
 
-2. Download `fire-detection.pt` from the repository's `models/` folder or the Releases page. On the Pi, you can use `wget` directly if a direct download link is available:
+2. Download the model file directly onto the Pi:
 
    ```bash
    wget -O deepstack_models/fire-detection.pt \
-     <direct-link-from-releases>
+     https://github.com/DeepQuestAI/DeepStack_FireNET/releases/download/v2/firenetv2.pt
    ```
 
-   Alternatively, download the file on another machine and copy it to the Pi:
+   The file is 169 MB — expect a few minutes on a typical home connection. Alternatively, copy it from another machine:
 
    ```bash
-   scp fire-detection.pt pi@servelens.local:~/servelens/deepstack_models/fire-detection.pt
+   scp deepstack_models/fire-detection.pt pi@servelens.local:~/servelens/deepstack_models/fire-detection.pt
    ```
 
 3. The filename must be exactly `fire-detection.pt` — this is what `config/config.json` references via `"model_name": "fire-detection"`.

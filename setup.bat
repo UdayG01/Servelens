@@ -28,6 +28,13 @@ if not exist models\license_plate_detector.pt (
     powershell -Command "Invoke-WebRequest -Uri 'https://github.com/Muhammad-Zeerak-Khan/Automatic-License-Plate-Recognition-using-YOLOv8/raw/main/license_plate_detector.pt' -OutFile 'models\license_plate_detector.pt'"
 )
 
+if not exist deepstack_models mkdir deepstack_models
+
+echo Downloading FireNET fire/smoke detection model (169 MB)...
+if not exist deepstack_models\fire-detection.pt (
+    powershell -Command "Invoke-WebRequest -Uri 'https://github.com/DeepQuestAI/DeepStack_FireNET/releases/download/v2/firenetv2.pt' -OutFile 'deepstack_models\fire-detection.pt'"
+)
+
 echo.
 echo ============================================
 echo   Setup complete!
@@ -36,8 +43,11 @@ echo.
 echo NEXT:
 echo   1. Drop test videos in videos\ named sample1.mp4, sample2.mp4, sample3.mp4
 echo   2. Edit config\config.json - set sender_app_password to your Gmail App Password
-echo   3. Run: run.bat
-echo   4. Open in browser: http://localhost:8000
+echo   3. Start DeepStack (face recognition + fire detection):
+echo        copy .env.example .env
+echo        docker compose up -d
+echo   4. Run: run.bat
+echo   5. Open in browser: http://localhost:8000
 echo.
 goto :eof
 

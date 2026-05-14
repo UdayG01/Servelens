@@ -113,29 +113,27 @@ If you don't run DeepStack, the Face Recognizer and Fire & Smoke camera tiles wi
 
 ### 3. Download custom DeepStack models
 
-The Fire & Smoke camera uses the **FireNET** model served through DeepStack's custom model endpoint. The model file is not included in the repository (it is a large binary — see `.gitignore`). Download it once and place it in `deepstack_models/`.
+The Fire & Smoke camera uses the **FireNET** model served through DeepStack's custom model endpoint. `setup.bat` downloads this automatically — if you ran setup.bat you can skip this step.
 
-**Download FireNET:**
+**Manual download (if needed):**
 
-1. Go to the FireNET releases page:
-   ```
-   https://github.com/DeepQuestAI/DeepStack_FireNET
-   ```
-2. Download `fire-detection.pt` from the repository's releases or the `models/` folder.
-3. Place it here — the filename must match exactly:
-   ```
-   deepstack_models/
-   └── fire-detection.pt
-   ```
-4. Restart DeepStack so it picks up the new model:
-   ```cmd
-   docker compose restart deepstack
-   ```
-5. Verify it loaded:
-   ```cmd
-   curl -X POST http://localhost:80/v1/vision/custom/fire-detection -F "image=@any_image.jpg"
-   ```
-   A response of `{"success": true, ...}` confirms the model is active.
+```cmd
+powershell -Command "Invoke-WebRequest -Uri 'https://github.com/DeepQuestAI/DeepStack_FireNET/releases/download/v2/firenetv2.pt' -OutFile 'deepstack_models\fire-detection.pt'"
+```
+
+The filename must be exactly `fire-detection.pt` — this is what `config/config.json` references. After placing the file, restart DeepStack so it loads the model:
+
+```cmd
+docker compose restart deepstack
+```
+
+Verify it loaded:
+
+```cmd
+curl -X POST http://localhost:80/v1/vision/custom/fire-detection -F "image=@any_image.jpg"
+```
+
+A response of `{"success": true, ...}` confirms the model is active.
 
 ### 4. Add sample videos
 
