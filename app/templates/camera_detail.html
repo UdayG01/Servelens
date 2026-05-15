@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ cam_name }} — ServeLens AI</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=3" />
+</head>
+<body class="detail-page">
+
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">← BACK</a>
+      <span class="brand-sep">|</span>
+      <span class="brand-mark">▣</span>
+      <span class="brand-name">ServeLens<span class="brand-thin"> AI</span></span>
+    </div>
+    <div class="cam-header-info">
+      <span class="cam-header-id">{{ cam_id.upper() }}</span>
+      <span class="cam-header-name">{{ cam_name }}</span>
+      <span class="dot connecting" id="statusDot"></span>
+      <span class="cam-header-status" id="statusText">connecting</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+  </header>
+
+  <main class="detail-layout">
+
+    <!-- ===== Video section ===== -->
+    <section class="detail-video-section">
+      <div class="detail-mode-bar">
+        <button class="mode-btn active" id="btnLive">⬤ LIVE</button>
+        <button class="mode-btn" id="btnPlayback">▶ PLAYBACK</button>
+        <span class="detail-now-playing" id="nowPlaying"></span>
+      </div>
+      <div class="detail-video-wrap" id="videoWrap">
+        <img class="detail-live-img" id="liveImg" alt="" />
+        <video id="recPlayer" controls preload="metadata"></video>
+        <div class="detail-placeholder" id="videoPlaceholder">LOADING…</div>
+      </div>
+    </section>
+
+    <!-- ===== Events sidebar ===== -->
+    <aside class="detail-events-panel">
+      <div class="section-head">
+        <h2>EVENTS</h2>
+        <span class="meta" id="evtCount">—</span>
+      </div>
+      <div class="detail-events-list" id="evtList">
+        <div class="empty">Loading events…</div>
+      </div>
+    </aside>
+
+  </main>
+
+  <!-- ===== Timeline ===== -->
+  <section class="timeline-section">
+    <div class="timeline-header">
+      <div class="tl-title-row">
+        <h2 class="tl-title">EVENT TIMELINE</h2>
+        <span class="tl-range" id="tlRange">—</span>
+      </div>
+      <div class="tl-controls">
+        <button class="btn" id="btnZoomIn" title="Zoom in">⊕</button>
+        <button class="btn" id="btnZoomOut" title="Zoom out">⊖</button>
+        <button class="btn" id="btnScrollLeft" title="Scroll left">‹</button>
+        <button class="btn" id="btnScrollRight" title="Scroll right">›</button>
+      </div>
+    </div>
+    <div class="tl-outer" id="tlOuter">
+      <div class="tl-axis-row" id="tlAxis"></div>
+      <div class="tl-track-row">
+        <div class="tl-track" id="tlTrack">
+          <div class="tl-playhead" id="tlPlayhead"></div>
+        </div>
+      </div>
+    </div>
+    <div class="tl-empty" id="tlEmpty">No recordings available for this camera.</div>
+  </section>
+
+  <div id="toast" class="toast"></div>
+  <div class="tl-tooltip" id="tlTooltip"></div>
+
+  <script>
+    const CAM_ID   = {{ cam_id | tojson }};
+    const CAM_NAME = {{ cam_name | tojson }};
+  </script>
+  <script src="/static/timeline.js?v=1"></script>
+</body>
+</html>

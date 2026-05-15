@@ -55,6 +55,7 @@ function buildTile(cam) {
       <span class="fps">-- FPS</span>
       ${faceBtnHtml}
       ${countBtnHtml}
+      <a class="expand-btn" href="/camera/${cam.id}" title="Open timeline view">⤢ DETAIL</a>
       <button class="rec-btn" data-rec>● REC</button>
     </div>
   `;

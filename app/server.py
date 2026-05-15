@@ -14,8 +14,10 @@ Inference runs every Nth frame to keep CPU usable for 4-8 cameras.
 Recording uses the annotated frame so detections are baked in.
 """
 
+import csv
 import os
 import json
+import re
 import time
 import traceback
 from datetime import datetime
@@ -426,6 +428,131 @@ def faces_delete(name: str):
     if not result.get("success"):
         raise HTTPException(502, result.get("error", "DeepStack error"))
     return {"deleted": name, "success": True}
+
+
+@app.get("/camera/{cam_id}", response_class=HTMLResponse)
+def camera_detail_page(cam_id: str, request: Request):
+    if cam_id not in CAMERAS:
+        raise HTTPException(404, "unknown camera")
+    cam_cfg = CAMERAS[cam_id]["config"]
+    return templates.TemplateResponse(request, "camera_detail.html", {
+        "cam_id": cam_id,
+        "cam_name": cam_cfg["name"],
+    })
+
+
+@app.get("/api/recordings/{cam_id}")
+def get_recordings(cam_id: str):
+    if cam_id not in CAMERAS:
+        raise HTTPException(404, "unknown camera")
+    cam_name = CAMERAS[cam_id]["config"]["name"]
+    safe_name = "".join(c if c.isalnum() else "_" for c in cam_name)
+
+    results = []
+    if os.path.isdir(RECORDINGS_DIR):
+        for fname in sorted(os.listdir(RECORDINGS_DIR)):
+            if not fname.endswith(".mp4"):
+                continue
+            if not fname.startswith(safe_name + "_"):
+                continue
+            fpath = os.path.join(RECORDINGS_DIR, fname)
+            # filename: {safe_name}_{YYYYMMDD}_{HHMMSS}_{suffix}.mp4
+            rest = fname[len(safe_name) + 1:-4]
+            parts = rest.split("_")
+            start_iso = None
+            rec_type = "unknown"
+            if len(parts) >= 3:
+                try:
+                    start_dt = datetime.strptime(f"{parts[0]}_{parts[1]}", "%Y%m%d_%H%M%S")
+                    start_iso = start_dt.isoformat()
+                    rec_type = "_".join(parts[2:])
+                except ValueError:
+                    pass
+            duration = 0.0
+            try:
+                cap = cv2.VideoCapture(fpath)
+                cap_fps = cap.get(cv2.CAP_PROP_FPS) or 15
+                frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                duration = round(frame_count / cap_fps, 2) if cap_fps > 0 else 0.0
+                cap.release()
+            except Exception:
+                pass
+            results.append({
+                "filename": fname,
+                "start_time": start_iso,
+                "duration": duration,
+                "type": rec_type,
+                "size_mb": round(os.path.getsize(fpath) / (1024 * 1024), 2),
+            })
+    return {"recordings": results, "cam_id": cam_id}
+
+
+@app.get("/recordings/{filename}")
+async def serve_recording(filename: str, request: Request):
+    path = os.path.join(RECORDINGS_DIR, os.path.basename(filename))
+    if not os.path.exists(path):
+        raise HTTPException(404, "recording not found")
+    file_size = os.path.getsize(path)
+    range_hdr = request.headers.get("range", "")
+    m = re.match(r"bytes=(\d+)-(\d*)", range_hdr)
+    if m:
+        start = int(m.group(1))
+        end = int(m.group(2)) if m.group(2) else file_size - 1
+        end = min(end, file_size - 1)
+        chunk = end - start + 1
+
+        def _iter():
+            with open(path, "rb") as f:
+                f.seek(start)
+                remaining = chunk
+                while remaining > 0:
+                    data = f.read(min(65536, remaining))
+                    if not data:
+                        break
+                    remaining -= len(data)
+                    yield data
+
+        headers = {
+            "Content-Range": f"bytes {start}-{end}/{file_size}",
+            "Accept-Ranges": "bytes",
+            "Content-Length": str(chunk),
+        }
+        return StreamingResponse(_iter(), status_code=206, headers=headers, media_type="video/mp4")
+    return FileResponse(path, media_type="video/mp4", headers={"Accept-Ranges": "bytes"})
+
+
+@app.get("/api/events/{cam_id}")
+def get_camera_events(cam_id: str, limit: int = 500):
+    if cam_id not in CAMERAS:
+        raise HTTPException(404, "unknown camera")
+    events: dict = {}
+    csv_path = os.path.join(ALERTS_DIR, "alerts.csv")
+    if os.path.exists(csv_path):
+        try:
+            with open(csv_path, "r", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    if row.get("camera_id") == cam_id:
+                        ts = row["timestamp"]
+                        events[ts] = {
+                            "timestamp": ts,
+                            "classes": row.get("classes", ""),
+                            "plates": [p.strip() for p in row.get("plates", "").split(",") if p.strip()],
+                            "names": [],
+                            "snapshot": os.path.basename(row.get("snapshot_path", "")),
+                        }
+        except Exception as e:
+            print(f"[Events] CSV read error: {e}")
+    for a in alert_mgr.get_recent(200):
+        if a["cam_id"] == cam_id:
+            events[a["timestamp"]] = {
+                "timestamp": a["timestamp"],
+                "classes": a["classes"],
+                "plates": a["plates"],
+                "names": a.get("names", []),
+                "snapshot": a["snapshot"],
+            }
+    sorted_evts = sorted(events.values(), key=lambda x: x["timestamp"], reverse=True)
+    return {"events": sorted_evts[:limit], "cam_id": cam_id}
 
 
 @app.get("/api/count/{cam_id}")

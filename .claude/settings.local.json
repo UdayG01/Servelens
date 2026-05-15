@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(dir \"c:\\\\Work\\\\Renata\\\\Servelens\\\\videos\")"
+      "Bash(dir \"c:\\\\Work\\\\Renata\\\\Servelens\\\\videos\")",
+      "Bash(xargs ls -la)",
+      "Bash(python -c \"import ast, sys; files = ['app/server.py', 'app/static/app.js', 'app/static/timeline.js']; [print\\(f\\) or ast.parse\\(open\\(f\\).read\\(\\)\\) for f in files if f.endswith\\('.py'\\)]; print\\('Python syntax OK'\\)\")",
+      "Bash(node --input-type=module)"
     ]
   }
 }

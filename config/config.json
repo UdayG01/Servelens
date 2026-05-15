@@ -84,7 +84,7 @@
     "recording": {
         "auto_record_on_alert": true,
         "alert_clip_duration_sec": 15,
-        "fourcc": "mp4v",
+        "fourcc": "avc1",
         "fps": 15
     },
     "ui": {
