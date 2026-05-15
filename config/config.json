@@ -76,11 +76,11 @@
         "enabled": true,
         "smtp_server": "smtp.gmail.com",
         "smtp_port": 587,
-        "sender_email": "your_personal@gmail.com",
-        "sender_app_password": "REPLACE_WITH_16_CHAR_APP_PASSWORD",
-        "recipients": ["vaibhav.kurrey@nexren.ai"],
+        "sender_email": "vaibhav.kurrey@renataiot.com",
+        "sender_app_password": "kijzlpakmgmqsdhg",
+        "recipients": ["vaibhav.kurrey@nexren.ai", "uday.gupta@nexren.ai"],
         "subject_prefix": "[CCTV ALERT]"
-    },
+},
     "recording": {
         "auto_record_on_alert": true,
         "alert_clip_duration_sec": 15,
