@@ -57,6 +57,58 @@ A real-time, browser-based surveillance platform with AI-powered object detectio
 
 ---
 
+## System Requirements
+
+> **Commercial deployment note:** This system is designed for 24/7 operation with continuous AI inference across multiple live camera feeds. Consumer-grade hardware that can *run* the software is not sufficient — it must sustain the full workload without thermal throttling, FPS degradation, or reliability risk over weeks of uninterrupted operation. A **dedicated desktop PC with a discrete NVIDIA GPU is the minimum viable deployment target.** Laptops are unsuitable for commercial 24/7 use regardless of specs; sustained GPU/CPU load will cause thermal throttling, fan wear, and reduced hardware lifespan.
+
+### Why GPU is mandatory
+
+Running all four AI models on CPU (`device: "cpu"`) consumes close to 100% of a modern CPU under continuous 4-camera load: YOLOv8 Nano takes ~30–50 ms per inference on CPU; at 6 inferences/sec across 4 cameras that is already ~1.2 seconds of CPU time demanded per second before EasyOCR's 200–600 ms OCR spikes, DeepStack HTTP round-trips (~100–300 ms each), OpenCV decode, MJPEG encode, and MP4 write overhead. Any consumer PC running this profile 24/7 will thermally throttle within hours, dropping frames, stalling alerts, and degrading hardware. GPU inference brings per-frame latency down to ~3–8 ms, reducing total AI CPU time by 85–90% and making sustained operation practical.
+
+### Minimum — sustained 24/7 commercial operation
+
+| Component | Minimum specification | Justification |
+|-----------|----------------------|---------------|
+| **Form factor** | Desktop PC (tower) | Laptops thermally throttle under sustained 24/7 AI + recording load. A desktop chassis provides adequate airflow, replaceable cooling, and no battery degradation risk. |
+| **OS** | Windows 10 Pro 64-bit (22H2+) or Windows 11 Pro 64-bit | Pro edition provides better process scheduling, Remote Desktop access for remote management, and Group Policy support needed in commercial settings. |
+| **CPU** | 8-core / 16-thread x86-64 — e.g. Intel Core i7-10700, AMD Ryzen 7 3700X | With GPU handling inference, the CPU still manages 4 OpenCV capture threads, 4 MJPEG encode loops, concurrent MP4 writes, FastAPI request handling, and DeepStack HTTP dispatch simultaneously. An 8-core desktop CPU keeps all of these below 50% utilisation, leaving thermal headroom for 24/7 operation. A 6-core i5-class CPU pushes past 70% under full load — inadequate for sustained commercial use. |
+| **RAM** | 16 GB DDR4 | Working set breakdown: Python process (CUDA PyTorch + 2× YOLOv8 Nano + EasyOCR + OpenCV buffers + FastAPI): ~3.5 GB. DeepStack container (4.28 GB image, FireNET 169 MB + face recognition + runtime): ~2.5 GB resident. Docker Desktop daemon: ~500 MB. Windows 10/11 idle: ~3–4 GB. Total: ~10 GB. 16 GB provides the minimum safe headroom for stable 24/7 operation without risking OOM kills under recording spikes or transient inference bursts. 8 GB leaves ~0 headroom and is not viable for commercial deployment. |
+| **GPU** | NVIDIA GTX 1660 Super 6 GB VRAM or RTX 2060 6 GB VRAM (CUDA 11.8+) | 6 GB VRAM is the minimum to run both the Python CUDA inference process and DeepStack GPU container simultaneously without VRAM exhaustion. VRAM budget: Python CUDA (2× YOLOv8 Nano ~500 MB + EasyOCR ~200 MB + CUDA runtime ~300 MB) ≈ 1 GB. DeepStack GPU (FireNET ~400 MB + face recognition model ~800 MB + CUDA overhead ~400 MB) ≈ 1.6 GB. Total: ~2.6 GB — 4 GB GPUs are marginal and risk OOM under concurrent inference load; 6 GB gives reliable headroom. GPU must support CUDA 11.8+. |
+| **Disk — system** | 256 GB NVMe SSD | Storage breakdown: Windows + Docker Desktop: ~30 GB. Python venv with CUDA PyTorch: ~4 GB (CPU-only venv is ~1.2 GB but CUDA build adds ~3 GB). DeepStack CPU image (measured at 4.28 GB): ~5 GB with Docker overhead. DeepStack GPU image: ~7 GB. Model weights (YOLOv8n + plate + FireNET): ~200 MB. EasyOCR English model: ~200 MB. Application code: ~50 MB. Working headroom: ~15 GB. NVMe is required — SATA SSD works but HDD causes frame-drop artifacts when 4 MP4 writers compete for the same disk. |
+| **Disk — recording storage** | 1 TB dedicated drive (HDD or NAS) | 4-camera continuous recording at 854×480 @ 15 FPS H.264 generates approximately 200–450 MB/hour per camera depending on scene motion. At 300 MB/hour average: 4 cameras × 300 MB × 24 h = **~28 GB/day**, ~860 GB/month. A separate recording drive (or NAS mount) prevents recording I/O from competing with the OS and Docker volumes on the system SSD. |
+| **Network** | Gigabit LAN | 4 RTSP sub-streams (480p) at ~2 Mbps each = 8 Mbps inbound. MJPEG streams to browser clients: ~3–5 Mbps per camera per viewer — two concurrent viewers watching all 4 feeds = ~40 Mbps outbound. Gigabit is the practical minimum; 100 Mbps becomes a bottleneck with more than one simultaneous viewer. |
+| **Python** | 3.10+ | Required by `ultralytics` ≥ 8.x and `fastapi` 0.115. |
+| **Docker** | Docker Desktop 4.25+ (Windows) | Required for DeepStack (Face Recognizer + Fire & Smoke cameras). Docker Desktop 4.25+ includes the compose V2 plugin and improved WSL 2 memory reclamation critical for long-running containers. |
+
+### Recommended — commercial 24/7 with operational headroom
+
+| Component | Recommended specification | Justification |
+|-----------|--------------------------|---------------|
+| **Form factor** | Desktop PC (tower) with active chassis cooling | Same as minimum — desktop only. Prefer cases with positive pressure and dust filters for deployments in dusty commercial environments (warehouses, factories, construction sites). |
+| **OS** | Windows 11 Pro 64-bit | Improved scheduler for hybrid CPU architectures; better WSL 2 integration; longer support lifecycle. |
+| **CPU** | Intel Core i7-13700 / i9-13900 or AMD Ryzen 7 7700X (8+ cores, 16+ threads) | Efficient-core architectures handle background tasks (recording, network, OS) on E-cores while P-cores stay available for inference dispatch and OpenCV. Keeps all threads below 40% average utilisation, providing a large thermal buffer for commercial 24/7. |
+| **RAM** | 32 GB DDR5 | Allows adding more cameras, switching to heavier YOLO models (YOLOv8m/l), running a local operator dashboard browser, and Remote Desktop sessions without touching the swap file. Swap activity on a 24/7 server causes unpredictable latency spikes in recording and alert delivery. |
+| **GPU** | NVIDIA RTX 3060 12 GB or RTX 4060 Ti 8 GB (CUDA 12.x) | 12 GB VRAM (RTX 3060) allows running the full Python CUDA stack + DeepStack GPU simultaneously with headroom for more cameras or larger YOLO models. The RTX 4060 Ti 8 GB is the better choice for new purchases — higher efficiency (Ada Lovelace), lower TDP (165 W vs 170 W), and longer driver support lifecycle. Both are desktop-class GPUs with adequate cooling for sustained load. |
+| **Disk — system** | 500 GB NVMe SSD (Gen4 preferred) | Accommodates both the CPU and GPU Docker images, multiple Python venvs, and leaves ~250 GB for short-term snapshot/clip retention before offloading to archive storage. |
+| **Disk — recording archive** | 4 TB HDD (7200 RPM) or NAS mount | At 28 GB/day (4 cameras), a 4 TB drive holds ~140 days of continuous footage. A NAS mount allows expanding capacity without touching the host PC. |
+| **Network** | Gigabit LAN with PoE switch | PoE switch (802.3af/at) powers IP cameras directly over the same Ethernet cable used for RTSP, eliminating separate camera power runs in commercial installations. |
+| **UPS** | 1500 VA / 900 W or larger | Uninterruptible power supply prevents abrupt MP4 file corruption and Docker volume corruption on power loss — both cause data loss that is unacceptable in a commercial surveillance context. |
+| **Python** | 3.11 | ~10–15% throughput improvement over 3.10 for CPU-bound tasks (OpenCV decode, JPEG encode); fully compatible with all pinned dependency versions. |
+| **Docker** | Docker Desktop 4.30+ (Windows) | Latest stable release with best WSL 2 memory management and CUDA container support. |
+
+### Enabling GPU inference
+
+Install the CUDA-enabled PyTorch build inside the venv, then set `"device": "cuda"` for each model in `config/config.json`. EasyOCR picks up the GPU automatically when device is not `"cpu"`.
+
+```cmd
+venv\Scripts\activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+```
+
+For DeepStack GPU mode, edit `.env` to select the GPU image variant (see `.env.example`) — this requires NVIDIA drivers 525+ installed on the host before starting the container.
+
+---
+
 ## Setup
 
 ### Prerequisites
