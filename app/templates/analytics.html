@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Servelens — Analytics</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css?v=2" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <a href="/" class="back-link">← BACK</a>
+      <span class="brand-sep">/</span>
+      <span class="brand-mark">▣</span>
+      <span class="brand-name">ServeLens<span class="brand-thin"> AI</span></span>
+      <span class="brand-rev">Analytics</span>
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
+    <div class="period-selector">
+      <button class="period-btn" data-days="1">24H</button>
+      <button class="period-btn active" data-days="7">7D</button>
+      <button class="period-btn" data-days="30">30D</button>
+      <button class="period-btn" data-days="90">90D</button>
+    </div>
+  </header>
+
+  <main class="analytics-layout">
+
+    <!-- KPI Row -->
+    <div class="kpi-row">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Events</div>
+        <div class="kpi-value" id="kpiTotal">—</div>
+        <div class="kpi-sub">in selected period</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Events Today</div>
+        <div class="kpi-value" id="kpiToday">—</div>
+        <div class="kpi-sub">since midnight</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Fire / Smoke</div>
+        <div class="kpi-value kpi-bad" id="kpiFireSmoke">—</div>
+        <div class="kpi-sub">alerts triggered</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Persons Detected</div>
+        <div class="kpi-value kpi-ok" id="kpiPeople">—</div>
+        <div class="kpi-sub">detection events</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Face Recognitions</div>
+        <div class="kpi-value kpi-blue" id="kpiFaces">—</div>
+        <div class="kpi-sub">detection events</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Plate Reads</div>
+        <div class="kpi-value kpi-plate" id="kpiPlates">—</div>
+        <div class="kpi-sub">license plates</div>
+      </div>
+    </div>
+
+    <!-- Row 1: Events timeline + Detection type doughnut -->
+    <div class="charts-row">
+      <div class="chart-card">
+        <div class="chart-head">
+          EVENTS OVER TIME
+          <span class="chart-hint" id="timelineHint"></span>
+        </div>
+        <div class="chart-body">
+          <canvas id="chartTimeline"></canvas>
+        </div>
+      </div>
+      <div class="chart-card chart-narrow">
+        <div class="chart-head">DETECTION TYPE BREAKDOWN</div>
+        <div class="chart-body">
+          <canvas id="chartTypes"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- Row 2: Camera alert bars + Activity heatmap -->
+    <div class="charts-row charts-row-flip">
+      <div class="chart-card chart-narrow">
+        <div class="chart-head">ALERTS BY CAMERA</div>
+        <div class="chart-body">
+          <canvas id="chartCameras"></canvas>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-head">HOURLY ACTIVITY PATTERN
+          <span class="chart-hint">weekday × hour</span>
+        </div>
+        <div id="heatmapGrid"></div>
+      </div>
+    </div>
+
+    <!-- Bottom: License plates + Recent events -->
+    <div class="tables-row">
+      <div class="table-card">
+        <div class="chart-head">TOP LICENSE PLATES</div>
+        <div class="table-scroll">
+          <table class="analytics-table">
+            <thead>
+              <tr>
+                <th>Plate</th>
+                <th class="col-center">Occurrences</th>
+                <th>Last Seen</th>
+              </tr>
+            </thead>
+            <tbody id="platesBody"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="table-card">
+        <div class="chart-head">
+          RECENT EVENTS
+          <span class="last-update">updated <span id="lastUpdate">—</span></span>
+        </div>
+        <div class="table-scroll">
+          <table class="analytics-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Camera</th>
+                <th>Detected</th>
+                <th class="col-center">Snap</th>
+              </tr>
+            </thead>
+            <tbody id="eventsBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/static/analytics.js?v=1"></script>
+</body>
+</html>

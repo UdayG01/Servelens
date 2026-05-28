@@ -1128,3 +1128,307 @@ body.detail-page {
   pointer-events: none;
   max-width: 280px;
 }
+
+/* ===== Analytics Page ===== */
+
+.analytics-layout {
+  padding: 20px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* KPI row */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 12px;
+}
+
+.kpi-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 18px 20px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.kpi-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.kpi-value {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+}
+
+.kpi-value.kpi-bad   { color: var(--bad); }
+.kpi-value.kpi-ok    { color: var(--ok); }
+.kpi-value.kpi-blue  { color: #60a5fa; }
+.kpi-value.kpi-plate { color: var(--plate); }
+
+.kpi-sub {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-top: 2px;
+}
+
+/* Chart rows */
+.charts-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 14px;
+}
+
+.charts-row.charts-row-flip {
+  grid-template-columns: 1fr 2fr;
+}
+
+@media (max-width: 1100px) {
+  .charts-row,
+  .charts-row.charts-row-flip { grid-template-columns: 1fr; }
+  .tables-row                  { grid-template-columns: 1fr; }
+}
+
+.chart-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 240px;
+}
+
+.chart-head {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chart-hint {
+  font-size: 9px;
+  color: var(--text-faint);
+  letter-spacing: 0.08em;
+  font-weight: 400;
+}
+
+.chart-body {
+  flex: 1;
+  position: relative;
+  min-height: 160px;
+}
+
+/* Period selector */
+.period-selector {
+  display: flex;
+  gap: 4px;
+}
+
+.period-btn {
+  background: var(--bg-card);
+  color: var(--text-dim);
+  border: 1px solid var(--line-strong);
+  padding: 6px 13px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  font-family: "JetBrains Mono", monospace;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+
+.period-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.period-btn.active {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Heatmap */
+.heatmap-container {
+  display: flex;
+  gap: 8px;
+  padding: 4px 0 2px;
+}
+
+.heatmap-days {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding-top: 18px;
+}
+
+.heatmap-day-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  color: var(--text-faint);
+  text-align: right;
+  height: 20px;
+  line-height: 20px;
+  white-space: nowrap;
+  letter-spacing: 0.05em;
+}
+
+.heatmap-grid-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.heatmap-hours-row {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+  height: 15px;
+}
+
+.heatmap-hour-label {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8px;
+  color: var(--text-faint);
+  text-align: center;
+  line-height: 15px;
+}
+
+.heatmap-row {
+  display: grid;
+  grid-template-columns: repeat(24, 1fr);
+  gap: 2px;
+}
+
+.heatmap-cell {
+  height: 20px;
+  background: var(--accent);
+  border-radius: 1px;
+  cursor: default;
+  transition: opacity 0.1s;
+}
+
+.heatmap-cell:hover {
+  opacity: 1 !important;
+  outline: 1px solid var(--accent);
+}
+
+/* Tables row */
+.tables-row {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: 14px;
+}
+
+.table-card {
+  background: var(--bg-card);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.table-scroll {
+  overflow-y: auto;
+  max-height: 280px;
+}
+.table-scroll::-webkit-scrollbar { width: 5px; }
+.table-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 2px; }
+
+.analytics-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.analytics-table th {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  padding: 6px 10px 8px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
+  z-index: 1;
+}
+
+.analytics-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--text-dim);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  vertical-align: middle;
+}
+
+.analytics-table tr:last-child td { border-bottom: none; }
+.analytics-table tbody tr:hover td { background: var(--bg-elev); }
+
+.table-empty {
+  text-align: center;
+  color: var(--text-faint);
+  padding: 24px 10px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.col-center { text-align: center; }
+.col-bold   { color: var(--text); font-weight: 700; }
+.col-time   { color: var(--text-faint); white-space: nowrap; }
+
+.classes-text {
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.snap-link {
+  color: var(--accent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+  font-family: "JetBrains Mono", monospace;
+}
+.snap-link:hover { color: var(--text); }
+
+.last-update {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 9px;
+  color: var(--text-faint);
+  letter-spacing: 0.04em;
+  font-weight: 400;
+}
+
+/* Analytics nav button (anchor used as button) */
+.btn-analytics {
+  text-decoration: none;
+}

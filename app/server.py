@@ -20,7 +20,7 @@ import json
 import re
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, Optional
 
 import cv2
@@ -567,6 +567,174 @@ def get_count(cam_id: str):
         if cls in alert_classes:
             counts[cls] = counts.get(cls, 0) + 1
     return {"cam_id": cam_id, "counts": counts, "total": sum(counts.values())}
+
+
+@app.get("/analytics", response_class=HTMLResponse)
+def analytics_page(request: Request):
+    return templates.TemplateResponse(request, "analytics.html", {})
+
+
+@app.get("/api/analytics")
+def get_analytics(days: int = 7):
+    from collections import defaultdict
+
+    days = max(1, min(days, 365))
+    now = datetime.now()
+    cutoff = now - timedelta(days=days)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    csv_path = os.path.join(ALERTS_DIR, "alerts.csv")
+    all_events = []
+    seen_keys: set = set()
+
+    if os.path.exists(csv_path):
+        try:
+            with open(csv_path, "r", encoding="utf-8") as f:
+                for row in csv.DictReader(f):
+                    try:
+                        ts = datetime.fromisoformat(row["timestamp"])
+                        if ts < cutoff:
+                            continue
+                        key = (row["timestamp"], row.get("camera_id", ""))
+                        if key in seen_keys:
+                            continue
+                        seen_keys.add(key)
+                        classes = [c.strip() for c in row.get("classes", "").split(",") if c.strip()]
+                        plates = [p.strip() for p in row.get("plates", "").split(",") if p.strip()]
+                        all_events.append({
+                            "ts": ts,
+                            "cam_id": row.get("camera_id", ""),
+                            "cam_name": row.get("camera_name", ""),
+                            "classes": classes,
+                            "plates": plates,
+                            "snapshot": os.path.basename(row.get("snapshot_path", "")),
+                        })
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[Analytics] CSV read error: {e}")
+
+    for a in alert_mgr.get_recent(200):
+        try:
+            key = (a["timestamp"], a["cam_id"])
+            if key in seen_keys:
+                continue
+            ts = datetime.fromisoformat(a["timestamp"])
+            if ts < cutoff:
+                continue
+            seen_keys.add(key)
+            classes = [c.strip() for c in a["classes"].split(",") if c.strip()]
+            all_events.append({
+                "ts": ts,
+                "cam_id": a["cam_id"],
+                "cam_name": a["cam_name"],
+                "classes": classes,
+                "plates": a.get("plates", []),
+                "snapshot": a.get("snapshot", ""),
+            })
+        except Exception:
+            pass
+
+    all_events.sort(key=lambda x: x["ts"])
+    today_events = [e for e in all_events if e["ts"] >= today_start]
+
+    cam_name_map = {cam_id: c["config"]["name"] for cam_id, c in CAMERAS.items()}
+    for cam_cfg in CONFIG.get("cameras", []):
+        cam_name_map.setdefault(cam_cfg["id"], cam_cfg["name"])
+
+    cam_counts: dict = defaultdict(int)
+    class_counts: dict = defaultdict(int)
+    plate_tracker: dict = defaultdict(lambda: {"count": 0, "last_seen": None})
+
+    for e in all_events:
+        cam_counts[e["cam_id"]] += 1
+        for cls in e["classes"]:
+            class_counts[cls.lower()] += 1
+        for p in e["plates"]:
+            plate_tracker[p]["count"] += 1
+            if plate_tracker[p]["last_seen"] is None or e["ts"] > plate_tracker[p]["last_seen"]:
+                plate_tracker[p]["last_seen"] = e["ts"]
+
+    most_active = max(cam_counts.items(), key=lambda x: x[1]) if cam_counts else None
+    top_cls = max(class_counts.items(), key=lambda x: x[1]) if class_counts else None
+
+    summary = {
+        "total_events": len(all_events),
+        "events_today": len(today_events),
+        "cameras_active": len(cam_counts),
+        "most_active_camera": {
+            "id": most_active[0],
+            "name": cam_name_map.get(most_active[0], most_active[0]),
+            "count": most_active[1],
+        } if most_active else None,
+        "top_detection_class": {"class": top_cls[0], "count": top_cls[1]} if top_cls else None,
+        "unique_plates": len(plate_tracker),
+        "fire_smoke_alerts": class_counts.get("fire", 0) + class_counts.get("smoke", 0),
+        "person_detections": class_counts.get("person", 0),
+        "face_detections": class_counts.get("face", 0),
+        "plate_reads": class_counts.get("license_plate", 0),
+    }
+
+    by_hour = [0] * 24
+    for e in all_events:
+        by_hour[e["ts"].hour] += 1
+    events_by_hour = [{"hour": h, "count": by_hour[h]} for h in range(24)]
+
+    by_day: dict = defaultdict(int)
+    for e in all_events:
+        by_day[e["ts"].strftime("%Y-%m-%d")] += 1
+    events_by_day = [
+        {"date": (cutoff + timedelta(days=i + 1)).strftime("%Y-%m-%d"),
+         "count": by_day.get((cutoff + timedelta(days=i + 1)).strftime("%Y-%m-%d"), 0)}
+        for i in range(days)
+    ]
+
+    events_by_camera = sorted(
+        [{"cam_id": cid, "cam_name": cam_name_map.get(cid, cid), "count": cnt}
+         for cid, cnt in cam_counts.items()],
+        key=lambda x: -x["count"],
+    )
+
+    events_by_class = sorted(
+        [{"class": cls, "count": cnt} for cls, cnt in class_counts.items()],
+        key=lambda x: -x["count"],
+    )
+
+    heatmap = [[0] * 24 for _ in range(7)]
+    for e in all_events:
+        heatmap[e["ts"].weekday()][e["ts"].hour] += 1
+    heatmap_max = max((max(row) for row in heatmap if row), default=1) or 1
+
+    top_plates = sorted(
+        [{"plate": p, "count": v["count"],
+          "last_seen": v["last_seen"].isoformat() if v["last_seen"] else None}
+         for p, v in plate_tracker.items()],
+        key=lambda x: -x["count"],
+    )[:15]
+
+    recent_events = [
+        {
+            "timestamp": e["ts"].isoformat(),
+            "cam_id": e["cam_id"],
+            "cam_name": cam_name_map.get(e["cam_id"], e["cam_id"]),
+            "classes": ", ".join(e["classes"]),
+            "plates": e["plates"],
+            "snapshot": e["snapshot"],
+        }
+        for e in reversed(all_events[-50:])
+    ]
+
+    return {
+        "period_days": days,
+        "summary": summary,
+        "events_by_hour": events_by_hour,
+        "events_by_day": events_by_day,
+        "events_by_camera": events_by_camera,
+        "events_by_class": events_by_class,
+        "heatmap": {"data": heatmap, "max": heatmap_max},
+        "top_plates": top_plates,
+        "recent_events": recent_events,
+    }
 
 
 @app.post("/api/record/{cam_id}")
