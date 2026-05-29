@@ -29,6 +29,9 @@ videos/*.mkv
 # DeepStack local storage (if mounted locally instead of Docker volume)
 localstorage/
 
+# License private keys (NEVER commit — keep only on the vendor machine)
+tools/keys/
+
 # Environment / secrets (.env.example is committed; .env is not)
 .env
 *.env

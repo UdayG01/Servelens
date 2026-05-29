@@ -27,7 +27,7 @@ import cv2
 import numpy as np
 import requests as _requests
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
@@ -36,6 +36,7 @@ from .camera_stream import CameraStream
 from .inference_engine import InferenceEngine
 from .alert_manager import AlertManager
 from .recorder import Recorder
+from .license import load_license, LicenseInfo, LicenseStatus
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -67,6 +68,70 @@ templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
 engine = InferenceEngine(CONFIG["models"])
 alert_mgr = AlertManager(CONFIG["email"], SNAPSHOTS_DIR, ALERTS_DIR)
+
+# License state — populated on startup before any request is served
+LICENSE: LicenseInfo = LicenseInfo()
+
+# Live/write operations that require an active (non-expired) license
+_LIVE_ONLY_RE = re.compile(
+    r"^(/stream/|/api/count/|/api/record/|/api/test-email$"
+    r"|/api/faces/register$|/api/faces/recent/delete$)"
+)
+# Paths that bypass the license gate entirely (status check + static assets)
+_ALWAYS_ALLOWED_RE = re.compile(r"^(/api/license|/static/|/favicon)")
+
+
+def _invalid_license_html(message: str) -> str:
+    return (
+        "<!DOCTYPE html><html lang='en'><head>"
+        "<meta charset='UTF-8'><title>Servelens – License Required</title>"
+        "<style>"
+        "body{font-family:sans-serif;background:#0a0a0f;color:#ccc;"
+        "display:flex;align-items:center;justify-content:center;"
+        "min-height:100vh;margin:0}"
+        ".card{background:#15151e;border:1px solid #ff4444;border-radius:8px;"
+        "padding:40px;max-width:480px;text-align:center}"
+        "h1{color:#ff4444;font-size:1.4rem;margin:0 0 16px}"
+        "p{margin:8px 0;line-height:1.6}"
+        "code{background:#1e1e2a;padding:2px 6px;border-radius:4px;font-size:.85rem}"
+        "a{color:#888}"
+        "</style></head><body>"
+        "<div class='card'>"
+        "<h1>License Required</h1>"
+        f"<p>{message}</p>"
+        "<p>Place a valid <code>config/license.json</code> and"
+        " <code>config/license_pubkey.pem</code> then restart the server.</p>"
+        "<p><small><a href='/api/license/status'>License status (JSON)</a></small></p>"
+        "</div></body></html>"
+    )
+
+
+@app.middleware("http")
+async def _license_gate(request: Request, call_next):
+    path = request.url.path
+
+    if _ALWAYS_ALLOWED_RE.match(path):
+        return await call_next(request)
+
+    if LICENSE.status == LicenseStatus.INVALID:
+        wants_html = "text/html" in request.headers.get("accept", "")
+        if wants_html:
+            return HTMLResponse(_invalid_license_html(LICENSE.message), status_code=403)
+        return JSONResponse({"detail": "invalid_license", "message": LICENSE.message}, status_code=403)
+
+    if LICENSE.status == LicenseStatus.EXPIRED:
+        # Block live feeds and all write operations
+        if _LIVE_ONLY_RE.match(path) or request.method in ("POST", "PUT", "DELETE"):
+            return JSONResponse(
+                {
+                    "detail": "license_expired",
+                    "message": LICENSE.message,
+                    "expiry_date": LICENSE.expiry_date,
+                },
+                status_code=403,
+            )
+
+    return await call_next(request)
 
 # State per camera
 CAMERAS: Dict[str, dict] = {}
@@ -187,7 +252,19 @@ def start_cameras():
 
 @app.on_event("startup")
 def _startup():
-    start_cameras()
+    global LICENSE
+    LICENSE = load_license()
+    tag = LICENSE.status.value.upper()
+    client = LICENSE.issued_to or "N/A"
+    expires = LICENSE.expiry_date or "N/A"
+    print(f"[License] {tag} | client={client} | expires={expires} | {LICENSE.message or 'OK'}")
+
+    if LICENSE.status == LicenseStatus.VALID:
+        start_cameras()
+    elif LICENSE.status == LicenseStatus.EXPIRED:
+        print("[License] Running in read-only mode — live feeds and detections disabled.")
+    else:
+        print(f"[License] Access locked — {LICENSE.message}")
 
 
 @app.on_event("shutdown")
@@ -202,13 +279,18 @@ def _shutdown():
 
 # ---------------- Routes ----------------
 
+@app.get("/api/license/status")
+def license_status():
+    return LICENSE.as_dict()
+
+
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse(request, "index.html", {})
+    return templates.TemplateResponse(request, "index.html", {"license": LICENSE.as_dict()})
 
 @app.get("/faces", response_class=HTMLResponse)
 def faces_page(request: Request):
-    return templates.TemplateResponse(request, "faces.html", {})
+    return templates.TemplateResponse(request, "faces.html", {"license": LICENSE.as_dict()})
 
 
 def _deepstack_url() -> str:
@@ -438,6 +520,7 @@ def camera_detail_page(cam_id: str, request: Request):
     return templates.TemplateResponse(request, "camera_detail.html", {
         "cam_id": cam_id,
         "cam_name": cam_cfg["name"],
+        "license": LICENSE.as_dict(),
     })
 
 
@@ -571,7 +654,7 @@ def get_count(cam_id: str):
 
 @app.get("/analytics", response_class=HTMLResponse)
 def analytics_page(request: Request):
-    return templates.TemplateResponse(request, "analytics.html", {})
+    return templates.TemplateResponse(request, "analytics.html", {"license": LICENSE.as_dict()})
 
 
 @app.get("/api/analytics")

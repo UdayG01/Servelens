@@ -25,6 +25,16 @@
     </div>
   </header>
 
+  {% if license and license.status == "expired" %}
+  <div style="background:#7c2d12;color:#fecaca;padding:10px 20px;font-size:.85rem;text-align:center;letter-spacing:.03em;">
+    ⚠ License expired on {{ license.expiry_date }} — running in read-only mode. Live feeds and detections are disabled. Contact your administrator to renew.
+  </div>
+  {% elif license and license.status == "valid" and license.days_remaining <= 30 %}
+  <div style="background:#713f12;color:#fef08a;padding:10px 20px;font-size:.85rem;text-align:center;letter-spacing:.03em;">
+    ⚠ License expires in {{ license.days_remaining }} day{{ 's' if license.days_remaining != 1 else '' }} ({{ license.expiry_date }}). Contact your administrator to renew.
+  </div>
+  {% endif %}
+
   <main class="layout">
     <section class="grid-wrap">
       <div class="section-head">
