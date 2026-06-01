@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servelens Portal</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #1a1a24;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-width: 500px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        h1 { margin-bottom: 20px; font-size: 2rem; font-weight: 600; }
+        p { margin-bottom: 20px; font-size: 1.1rem; color: #b3b3b3; line-height: 1.5; }
+        .btn {
+            display: inline-block;
+            background: #2563eb;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: background 0.2s, transform 0.1s;
+        }
+        .btn:hover { background: #1d4ed8; transform: translateY(-2px); }
+        .error { color: #ef4444; font-weight: 500; }
+        .contact {
+            margin-top: 30px;
+            font-size: 0.9rem;
+            color: #888;
+            border-top: 1px solid #333;
+            padding-top: 15px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Servelens Access</h1>
+        
+        {% if license.status == 'valid' and not error %}
+            <p>Your license is valid and active. You can now access the Servelens dashboard.</p>
+            <a href="/" class="btn">Enter App</a>
+        {% elif license.status == 'expired' %}
+            <p class="error">Your license expired on {{ license.expiry_date }}.</p>
+            <p>Please contact support to renew your license.</p>
+        {% elif error == 'too_many_users' %}
+            <p class="error">Too Many Users</p>
+            <p>The maximum number of concurrent users ({{ license.max_users }}) allowed by your license has been reached.</p>
+            <div class="contact">
+                <strong>To allow more users, please contact us to upgrade your license.</strong>
+            </div>
+        {% else %}
+            <p class="error">License Invalid: {{ license.message }}</p>
+            <p>Please contact support for assistance.</p>
+        {% endif %}
+    </div>
+</body>
+</html>

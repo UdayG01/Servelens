@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin - User Management</title>
+    <style>
+        body { font-family: 'Inter', sans-serif; background: #0a0a0f; color: #ffffff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; padding:20px;}
+        .container { background: #1a1a24; padding: 40px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); max-width: 500px; width: 100%; border: 1px solid #333; text-align: center; }
+        h1 { margin-bottom: 20px; font-size: 2rem; font-weight: 600; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        input[type="text"], input[type="password"] { width: 100%; padding: 12px; background: #0f0f16; border: 1px solid #444; border-radius: 6px; color: white; box-sizing: border-box; }
+        .btn { width: 100%; background: #10b981; color: white; padding: 12px; border: none; border-radius: 6px; font-size: 1.1rem; cursor: pointer; }
+        .error { color: #ef4444; margin-bottom: 15px; font-size: 0.9rem; }
+        .status { margin-bottom: 30px; padding: 15px; background: #0f0f16; border-radius: 8px; border-left: 4px solid #2563eb; text-align: left; }
+        .status h3 { margin: 0 0 10px 0; font-size: 1.1rem; }
+        .status p { margin: 5px 0; color: #aaa; font-size: 0.95rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>User Management</h1>
+        <div class="status">
+            <h3>License Info</h3>
+            <p>Max Users: {{ license.max_users if license.max_users > 0 else 'Unlimited' }}</p>
+            <p>Registered Users: {{ users|length }}</p>
+        </div>
+        
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+        
+        <div style="text-align: left; margin-bottom: 20px;">
+            <h3>Users</h3>
+            <ul style="list-style:none; padding:0;">
+                {% for u in users %}
+                <li style="display:flex; justify-content:space-between; padding:10px; background:#0f0f16; margin-bottom:10px; border-radius:6px; align-items:center;">
+                    <span>{{ u.username }}</span>
+                    <form action="/admin/users/{{ u.id }}/delete" method="POST" style="margin:0;">
+                        <button type="submit" style="background:#ef4444; color:white; border:none; padding:5px 10px; border-radius:4px; cursor:pointer;">Delete</button>
+                    </form>
+                </li>
+                {% else %}
+                <li style="color:#888;">No users registered yet.</li>
+                {% endfor %}
+            </ul>
+        </div>
+        
+        <h3 style="text-align: left;">Add User</h3>
+        <form action="/admin/users/add" method="POST">
+            <div class="form-group">
+                <input type="text" name="username" placeholder="Username" required>
+            </div>
+            <div class="form-group">
+                <input type="password" name="password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn">Add User</button>
+        </form>
+        
+        <div style="margin-top:20px; display: flex; justify-content: space-between;">
+            <a href="/admin/license" style="color:#aaa;">Go to License Generator</a>
+            <a href="/admin/logout" style="color: #ef4444;">Admin Logout</a>
+        </div>
+    </div>
+</body>
+</html>

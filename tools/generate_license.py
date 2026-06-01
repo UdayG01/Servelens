@@ -63,9 +63,8 @@ def generate_keys() -> None:
 
 def _load_private_key():
     if not os.path.exists(PRIVATE_KEY_PATH):
-        print(f"ERROR: Private key not found at {PRIVATE_KEY_PATH}")
-        print("Run:  python tools/generate_license.py --init")
-        sys.exit(1)
+        print(f"INFO: Private key not found at {PRIVATE_KEY_PATH}, generating new key pair...")
+        generate_keys()
 
     from cryptography.hazmat.primitives.serialization import load_pem_private_key
     with open(PRIVATE_KEY_PATH, "rb") as f:
@@ -77,7 +76,7 @@ def _canonical_payload(data: dict) -> bytes:
     return json.dumps(fields, sort_keys=True, separators=(",", ":")).encode()
 
 
-def generate_license(client_id: str, issued_to: str, expiry: str, output_path: str) -> None:
+def generate_license(client_id: str, issued_to: str, expiry: str, max_users: int, output_path: str) -> None:
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.asymmetric import padding
 
@@ -89,11 +88,17 @@ def generate_license(client_id: str, issued_to: str, expiry: str, output_path: s
 
     private_key = _load_private_key()
 
+    if not os.path.exists(CONFIG_PUBKEY_PATH) and os.path.exists(PUBLIC_KEY_PATH):
+        import shutil
+        os.makedirs(os.path.dirname(CONFIG_PUBKEY_PATH), exist_ok=True)
+        shutil.copy(PUBLIC_KEY_PATH, CONFIG_PUBKEY_PATH)
+
     payload = {
         "client_id": client_id,
         "issued_to": issued_to,
         "issued_date": date.today().isoformat(),
         "expiry_date": expiry_date.isoformat(),
+        "max_users": max_users,
     }
 
     signature = private_key.sign(_canonical_payload(payload), padding.PKCS1v15(), hashes.SHA256())
@@ -109,6 +114,7 @@ def generate_license(client_id: str, issued_to: str, expiry: str, output_path: s
     print(f"  Issued to  : {issued_to}")
     print(f"  Issued     : {date.today()}")
     print(f"  Expires    : {expiry_date}  ({days} days remaining)")
+    print(f"  Max Users  : {max_users}")
     print()
     print("Send the client:")
     print(f"  {output_path}")
@@ -130,6 +136,8 @@ def main() -> None:
                         help="Human-readable client/company name")
     parser.add_argument("--expiry", metavar="YYYY-MM-DD",
                         help="License expiry date")
+    parser.add_argument("--max-users", metavar="N", type=int, default=0,
+                        help="Maximum concurrent users allowed (0 for unlimited)")
     parser.add_argument("--output", metavar="PATH",
                         default=os.path.join(BASE_DIR, "config", "license.json"),
                         help="Output path for the license file (default: config/license.json)")
@@ -149,7 +157,7 @@ def main() -> None:
         return
 
     if args.client_id and args.issued_to and args.expiry:
-        generate_license(args.client_id, args.issued_to, args.expiry, args.output)
+        generate_license(args.client_id, args.issued_to, args.expiry, args.max_users, args.output)
         return
 
     parser.print_help()

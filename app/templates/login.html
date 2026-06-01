@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Servelens - Login</title>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #0a0a0f;
+            color: #ffffff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background: #1a1a24;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+            max-width: 400px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        h1 { margin-bottom: 20px; font-size: 2rem; font-weight: 600; }
+        .form-group { margin-bottom: 20px; text-align: left; }
+        label { display: block; margin-bottom: 8px; color: #ccc; }
+        input[type="text"], input[type="password"] {
+            width: 100%; padding: 12px; background: #0f0f16;
+            border: 1px solid #444; border-radius: 6px; color: white;
+            box-sizing: border-box;
+        }
+        .btn {
+            width: 100%; background: #2563eb; color: white;
+            padding: 12px; border: none; border-radius: 6px;
+            font-size: 1.1rem; cursor: pointer;
+        }
+        .error { color: #ef4444; margin-bottom: 15px; font-size: 0.9rem; }
+        .links { margin-top: 20px; font-size: 0.9rem; color: #888; }
+        .links a { color: #2563eb; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Servelens Login</h1>
+        
+        {% if license.status != 'valid' %}
+            <p class="error" style="font-weight: 500; font-size: 1rem;">License {{ license.status|capitalize }}: {{ license.message }}</p>
+            <div style="margin-top: 25px; padding-top: 15px; border-top: 1px solid #333; font-size: 0.9rem; color: #888;">
+                <p>For license activation, renewals, or upgrading user capacity, please contact Renata IoT at <a href="mailto:support@renataiot.com" style="color: #2563eb; text-decoration: none;">support@renataiot.com</a>.</p>
+                <p style="margin-top: 15px;">Are you a system administrator? <a href="/admin/license" style="color: #2563eb; text-decoration: none; font-weight: 500;">Access Admin Panel</a></p>
+            </div>
+        {% else %}
+            <div style="margin-bottom: 25px; padding: 15px; background: #0f0f16; border-radius: 8px; border-left: 4px solid #10b981; text-align: left; font-size: 0.9rem;">
+                <p style="margin: 0 0 5px 0; color: #ccc;"><strong>Licensed to:</strong> {{ license.issued_to }}</p>
+                <p style="margin: 0 0 5px 0; color: #ccc;"><strong>Expiry:</strong> {{ license.expiry_date }} ({{ license.days_remaining }} days)</p>
+                <p style="margin: 0; color: #ccc;"><strong>Users:</strong> {{ user_count }} / {{ license.max_users if license.max_users > 0 else 'Unlimited' }}</p>
+            </div>
+        {% endif %}
+        
+        {% if error %}
+            <p class="error">{{ error }}</p>
+        {% endif %}
+
+        {% if license.status == 'valid' %}
+        <form action="/login" method="POST">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" required>
+            </div>
+            <div class="form-group">
+                <label>Password</label>
+                <input type="password" name="password" required>
+            </div>
+            <button type="submit" class="btn">Login</button>
+        </form>
+        <div class="links">
+            <p>Don't have an account? <a href="/register">Register</a></p>
+        </div>
+        {% endif %}
+    </div>
+</body>
+</html>

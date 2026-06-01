@@ -23,6 +23,7 @@ class LicenseInfo:
     issued_to: str = ""
     issued_date: str = ""
     expiry_date: str = ""
+    max_users: int = 0
     days_remaining: int = 0
     message: str = "No license loaded"
 
@@ -33,6 +34,7 @@ class LicenseInfo:
             "issued_to": self.issued_to,
             "issued_date": self.issued_date,
             "expiry_date": self.expiry_date,
+            "max_users": self.max_users,
             "days_remaining": self.days_remaining,
             "message": self.message,
         }
@@ -45,7 +47,7 @@ def _canonical_payload(data: dict) -> bytes:
 
 def load_license() -> LicenseInfo:
     if not os.path.exists(PUBKEY_PATH):
-        return LicenseInfo(message="Verification key not found (config/license_pubkey.pem missing)")
+        return LicenseInfo(message="Verification key not found")
 
     if not os.path.exists(LICENSE_PATH):
         return LicenseInfo(message="License file not found (config/license.json missing)")
@@ -87,6 +89,7 @@ def load_license() -> LicenseInfo:
         issued_to=data.get("issued_to", ""),
         issued_date=data.get("issued_date", ""),
         expiry_date=data.get("expiry_date", ""),
+        max_users=data.get("max_users", 0),
         days_remaining=max(0, days_remaining),
         message=msg,
     )

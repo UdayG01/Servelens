@@ -26,17 +26,22 @@ from typing import Dict, Optional
 import cv2
 import numpy as np
 import requests as _requests
-from fastapi import FastAPI, HTTPException, UploadFile, File, Form
-from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends
+from fastapi.responses import StreamingResponse, FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from starlette.requests import Request
+import uuid
+import secrets
 
 from .camera_stream import CameraStream
 from .inference_engine import InferenceEngine
 from .alert_manager import AlertManager
 from .recorder import Recorder
 from .license import load_license, LicenseInfo, LicenseStatus
+from .db import init_db, get_user_count, get_user_by_username, create_user, list_users, delete_user, create_session, get_session, delete_session
+from .auth import hash_password, verify_password, generate_session_token
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -63,6 +68,21 @@ CONFIG = load_config()
 INFERENCE_INTERVAL = max(1, int(CONFIG.get("ui", {}).get("inference_interval_frames", 5)))
 
 app = FastAPI(title="CCTV Intelligence")
+
+class AdminAuthRequired(Exception):
+    pass
+
+@app.exception_handler(AdminAuthRequired)
+async def admin_auth_exception_handler(request: Request, exc: AdminAuthRequired):
+    return RedirectResponse(url="/admin/login")
+
+ADMIN_SESSIONS = set()
+
+def get_current_admin(request: Request):
+    token = request.cookies.get("admin_session")
+    if not token or token not in ADMIN_SESSIONS:
+        raise AdminAuthRequired()
+    return "admin"
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 
@@ -77,34 +97,8 @@ _LIVE_ONLY_RE = re.compile(
     r"^(/stream/|/api/count/|/api/record/|/api/test-email$"
     r"|/api/faces/register$|/api/faces/recent/delete$)"
 )
-# Paths that bypass the license gate entirely (status check + static assets)
-_ALWAYS_ALLOWED_RE = re.compile(r"^(/api/license|/static/|/favicon)")
-
-
-def _invalid_license_html(message: str) -> str:
-    return (
-        "<!DOCTYPE html><html lang='en'><head>"
-        "<meta charset='UTF-8'><title>Servelens – License Required</title>"
-        "<style>"
-        "body{font-family:sans-serif;background:#0a0a0f;color:#ccc;"
-        "display:flex;align-items:center;justify-content:center;"
-        "min-height:100vh;margin:0}"
-        ".card{background:#15151e;border:1px solid #ff4444;border-radius:8px;"
-        "padding:40px;max-width:480px;text-align:center}"
-        "h1{color:#ff4444;font-size:1.4rem;margin:0 0 16px}"
-        "p{margin:8px 0;line-height:1.6}"
-        "code{background:#1e1e2a;padding:2px 6px;border-radius:4px;font-size:.85rem}"
-        "a{color:#888}"
-        "</style></head><body>"
-        "<div class='card'>"
-        "<h1>License Required</h1>"
-        f"<p>{message}</p>"
-        "<p>Place a valid <code>config/license.json</code> and"
-        " <code>config/license_pubkey.pem</code> then restart the server.</p>"
-        "<p><small><a href='/api/license/status'>License status (JSON)</a></small></p>"
-        "</div></body></html>"
-    )
-
+# Paths that bypass the license gate entirely (status check + static assets + admin panel)
+_ALWAYS_ALLOWED_RE = re.compile(r"^(/api/license|/static/|/favicon|/login|/register|/logout|/admin/)")
 
 @app.middleware("http")
 async def _license_gate(request: Request, call_next):
@@ -113,23 +107,65 @@ async def _license_gate(request: Request, call_next):
     if _ALWAYS_ALLOWED_RE.match(path):
         return await call_next(request)
 
-    if LICENSE.status == LicenseStatus.INVALID:
-        wants_html = "text/html" in request.headers.get("accept", "")
+    wants_html = "text/html" in request.headers.get("accept", "")
+
+    # 1. First-run redirection: if there are 0 users, always redirect HTML requests to /register
+    if get_user_count() == 0:
         if wants_html:
-            return HTMLResponse(_invalid_license_html(LICENSE.message), status_code=403)
+            if path != "/register":
+                return RedirectResponse("/register")
+        else:
+            return JSONResponse({"detail": "setup_required", "message": "No users registered. Please register first."}, status_code=400)
+
+    # 2. Authentication check
+    session_token = request.cookies.get("session_token")
+    session = get_session(session_token) if session_token else None
+
+    if not session:
+        if wants_html:
+            return RedirectResponse("/login")
+        return JSONResponse({"detail": "unauthorized", "message": "Please log in"}, status_code=401)
+
+    # 3. License checks
+    if LICENSE.status == LicenseStatus.INVALID:
+        if wants_html:
+            return HTMLResponse(
+                content=f"""
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <title>Servelens - License Required</title>
+                    <style>
+                        body {{ font-family: 'Inter', sans-serif; background: #0a0a0f; color: #ffffff; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; }}
+                        .container {{ background: #1a1a24; padding: 40px; border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5); max-width: 500px; width: 100%; text-align: center; border: 1px solid #333; }}
+                        h1 {{ color: #ef4444; margin-bottom: 20px; font-size: 1.8rem; }}
+                        p {{ color: #ccc; line-height: 1.6; margin-bottom: 20px; }}
+                        .contact {{ margin-top: 30px; font-size: 0.9rem; color: #888; border-top: 1px solid #333; padding-top: 20px; }}
+                        a {{ color: #2563eb; text-decoration: none; font-weight: 500; }}
+                        a:hover {{ text-decoration: underline; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <h1>License Status: Invalid</h1>
+                        <p>{LICENSE.message}</p>
+                        <div class="contact">
+                            <p>For licensing issues, upgrades, or renewals, please contact Renata IoT at <a href="mailto:support@renataiot.com">support@renataiot.com</a>.</p>
+                            <p style="margin-top: 15px;">System Administrator? <a href="/admin/license">Access Admin Panel to Configure License</a></p>
+                        </div>
+                    </div>
+                </body>
+                </html>
+                """,
+                status_code=403
+            )
         return JSONResponse({"detail": "invalid_license", "message": LICENSE.message}, status_code=403)
 
     if LICENSE.status == LicenseStatus.EXPIRED:
-        # Block live feeds and all write operations
         if _LIVE_ONLY_RE.match(path) or request.method in ("POST", "PUT", "DELETE"):
-            return JSONResponse(
-                {
-                    "detail": "license_expired",
-                    "message": LICENSE.message,
-                    "expiry_date": LICENSE.expiry_date,
-                },
-                status_code=403,
-            )
+            return JSONResponse({"detail": "license_expired", "message": LICENSE.message}, status_code=403)
+        # Otherwise, allow read-only GET requests for historic logs, configurations, etc.
 
     return await call_next(request)
 
@@ -252,6 +288,7 @@ def start_cameras():
 
 @app.on_event("startup")
 def _startup():
+    init_db()
     global LICENSE
     LICENSE = load_license()
     tag = LICENSE.status.value.upper()
@@ -278,6 +315,120 @@ def _shutdown():
 
 
 # ---------------- Routes ----------------
+
+@app.get("/login", response_class=HTMLResponse)
+def login_page(request: Request, error: str = None):
+    return templates.TemplateResponse(request, "login.html", {"license": LICENSE.as_dict(), "error": error, "user_count": get_user_count()})
+
+@app.post("/login")
+def login_submit(username: str = Form(...), password: str = Form(...)):
+    user = get_user_by_username(username)
+    if not user or not verify_password(password, user["password_hash"]):
+        return RedirectResponse("/login?error=Invalid credentials", status_code=303)
+    
+    token = generate_session_token()
+    create_session(user["id"], token)
+    
+    response = RedirectResponse("/", status_code=303)
+    response.set_cookie("session_token", token, httponly=True)
+    return response
+
+@app.get("/logout")
+def logout(request: Request):
+    token = request.cookies.get("session_token")
+    if token:
+        delete_session(token)
+    response = RedirectResponse("/login", status_code=303)
+    response.delete_cookie("session_token")
+    return response
+
+@app.get("/register", response_class=HTMLResponse)
+def register_page(request: Request, error: str = None):
+    return templates.TemplateResponse(request, "register.html", {"license": LICENSE.as_dict(), "error": error, "user_count": get_user_count()})
+
+@app.post("/register")
+def register_submit(username: str = Form(...), password: str = Form(...)):
+    if LICENSE.max_users > 0 and get_user_count() >= LICENSE.max_users:
+        return RedirectResponse("/register?error=too_many_users", status_code=303)
+    
+    pwd_hash = hash_password(password)
+    success = create_user(username, pwd_hash)
+    if not success:
+        return RedirectResponse("/register?error=Username already exists", status_code=303)
+    
+    return RedirectResponse("/login?error=Registration successful, please log in", status_code=303)
+
+@app.get("/admin/users", response_class=HTMLResponse)
+def admin_users_page(request: Request, _ = Depends(get_current_admin)):
+    users = list_users()
+    return templates.TemplateResponse(request, "admin_users.html", {"license": LICENSE.as_dict(), "users": users})
+
+@app.post("/admin/users/add")
+def admin_add_user(username: str = Form(...), password: str = Form(...), _ = Depends(get_current_admin)):
+    if LICENSE.max_users > 0 and get_user_count() >= LICENSE.max_users:
+        return RedirectResponse("/admin/users?error=max_users_reached", status_code=303)
+    
+    success = create_user(username, hash_password(password))
+    return RedirectResponse("/admin/users", status_code=303)
+
+@app.post("/admin/users/{user_id}/delete")
+def admin_delete_user(user_id: int, _ = Depends(get_current_admin)):
+    delete_user(user_id)
+    return RedirectResponse("/admin/users", status_code=303)
+
+
+@app.get("/admin/login", response_class=HTMLResponse)
+def admin_login_page(request: Request, error: str = None):
+    return templates.TemplateResponse(request, "admin_login.html", {"error": error})
+
+@app.post("/admin/login")
+def admin_login_submit(username: str = Form(...), password: str = Form(...)):
+    admin_cfg = CONFIG.get("admin", {})
+    correct_username = secrets.compare_digest(username, admin_cfg.get("admin_username", "admin"))
+    correct_password = secrets.compare_digest(password, admin_cfg.get("admin_password", "password123"))
+    
+    if not (correct_username and correct_password):
+        return RedirectResponse("/admin/login?error=Invalid credentials", status_code=303)
+        
+    token = secrets.token_urlsafe(32)
+    ADMIN_SESSIONS.add(token)
+    
+    response = RedirectResponse("/admin/license", status_code=303)
+    response.set_cookie("admin_session", token, httponly=True)
+    return response
+
+@app.get("/admin/logout")
+def admin_logout(request: Request):
+    token = request.cookies.get("admin_session")
+    if token in ADMIN_SESSIONS:
+        ADMIN_SESSIONS.remove(token)
+    response = RedirectResponse("/login", status_code=303)
+    response.delete_cookie("admin_session")
+    return response
+
+@app.get("/admin/license", response_class=HTMLResponse)
+def admin_license_page(request: Request, _ = Depends(get_current_admin)):
+    return templates.TemplateResponse(request, "admin_license.html", {"license": LICENSE.as_dict()})
+
+@app.post("/admin/license")
+def admin_license_generate(
+    client_id: str = Form(...),
+    issued_to: str = Form(...),
+    expiry: str = Form(...),
+    max_users: int = Form(0),
+    _ = Depends(get_current_admin)
+):
+    from tools.generate_license import generate_license
+    output_path = os.path.join(BASE_DIR, "config", "license.json")
+    try:
+        generate_license(client_id, issued_to, expiry, max_users, output_path)
+        global LICENSE
+        LICENSE = load_license()
+        if LICENSE.status == LicenseStatus.VALID and len(CAMERAS) == 0:
+            start_cameras()
+        return RedirectResponse("/admin/license", status_code=303)
+    except Exception as e:
+        raise HTTPException(500, f"Error generating license: {e}")
 
 @app.get("/api/license/status")
 def license_status():
