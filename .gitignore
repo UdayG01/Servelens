@@ -21,7 +21,7 @@ recordings/
 alerts/alerts.csv
 
 # Sample videos (large binaries — provide your own)
-videos/*.mp4
+#videos/*.mp4 - mp4s are not so big that I exclude them, pushing them would just help in deployment easily
 videos/*.avi
 videos/*.mov
 videos/*.mkv
